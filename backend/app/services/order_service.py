@@ -1,0 +1,84 @@
+import uuid
+from datetime import datetime, timezone
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import extract, func
+from app.models import ServiceOrder, Lead, ServiceStatus
+from app.schemas import ServiceOrderCreate
+
+class OrderService:
+    """
+    Camada Exclusiva de Processamento de Negócio para entidade ServiceOrder.
+    """
+    def __init__(self, db: Session, tenant_id: uuid.UUID):
+        self.db = db
+        self.tenant_id = tenant_id
+
+    def generate_protocol(self) -> str:
+        """
+        Gera o protocolo sequencial no padrão ASI-YY-XXXX.
+        Reseta a cada ano.
+        """
+        current_year = datetime.now(timezone.utc).year
+        year_suffix = str(current_year)[-2:]
+
+        # Busca a última OS criada neste ano
+        last_order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.tenant_id == self.tenant_id,
+            extract('year', ServiceOrder.created_at) == current_year
+        ).order_by(ServiceOrder.created_at.desc()).first()
+
+        if not last_order or not last_order.protocol.startswith(f"ASI-{year_suffix}-"):
+            new_sequence = 1
+        else:
+            # Extrai o numero do protocolo ASI-YY-XXXX
+            try:
+                last_sequence_str = last_order.protocol.split('-')[2]
+                new_sequence = int(last_sequence_str) + 1
+            except (IndexError, ValueError):
+                new_sequence = 1
+
+        return f"ASI-{year_suffix}-{new_sequence:04d}"
+
+    def create_order_from_lead(self, lead_id: uuid.UUID, order_in: ServiceOrderCreate) -> ServiceOrder:
+        """Processo Estrito de Criação de OS a partir de Lead."""
+        
+        # 1. Validar se o Lead existe e pertence ao tenant
+        lead = self.db.query(Lead).filter(
+            Lead.id == lead_id,
+            Lead.tenant_id == self.tenant_id
+        ).first()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado para o Tenant ativo.")
+
+        # 2. Trava de Duplicidade
+        existing_order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.lead_id == lead_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if existing_order:
+            raise HTTPException(
+                status_code=400, 
+                detail="Operação Invalida: Este Lead já possui uma Ordem de Serviço vinculada."
+            )
+
+        # 3. Gerador de Protocolo
+        protocol = self.generate_protocol()
+
+        # 4. Injeção de Banco
+        db_order = ServiceOrder(
+            tenant_id=self.tenant_id,
+            lead_id=lead.id,
+            protocol=protocol,
+            status=ServiceStatus.OPEN,
+            device_info=order_in.device_info,
+            technical_notes=order_in.technical_notes,
+            total_value=0.00
+        )
+        
+        self.db.add(db_order)
+        self.db.commit()
+        self.db.refresh(db_order)
+        return db_order
