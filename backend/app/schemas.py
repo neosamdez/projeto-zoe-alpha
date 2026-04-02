@@ -65,3 +65,58 @@ class ServiceOrderStatusUpdate(BaseModel):
     [CONTRATO REST RÍGIDO] Atualização de Status da OS
     """
     status: ServiceStatus = Field(..., description="Novo estágio da Ordem de Serviço")
+
+
+# ── AUTH SCHEMAS ────────────────────────────────────────────────────────────────
+
+from app.models import UserRole
+
+class UserCreate(BaseModel):
+    """
+    [CONTRATO REST RÍGIDO] Registro de novo Usuário.
+    A senha em texto plano é recebida aqui e imediatamente hashada no Service.
+    """
+    full_name: str = Field(..., max_length=255, description="Nome completo do Operador")
+    email: EmailStr = Field(..., description="E-mail único do Operador")
+    password: str = Field(..., min_length=8, description="Senha (mínimo 8 caracteres)")
+    role: UserRole = Field(default=UserRole.TECHNICIAN, description="Papel do usuário no sistema")
+
+
+class UserResponse(BaseModel):
+    """
+    [RESPONSE CONTRACT] Retorno seguro: NUNCA expõe hashed_password.
+    """
+    id: uuid.UUID
+    full_name: str
+    email: str
+    role: str
+    is_active: bool
+    tenant_id: uuid.UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        if hasattr(obj, 'role') and hasattr(obj.role, 'value'):
+            obj_dict = {c.key: getattr(obj, c.key) for c in obj.__table__.columns}
+            obj_dict['role'] = obj.role.value
+            return super().model_validate(obj_dict, *args, **kwargs)
+        return super().model_validate(obj, *args, **kwargs)
+
+
+class Token(BaseModel):
+    """
+    [RESPONSE CONTRACT] Payload de autenticação retornado ao cliente após login.
+    """
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    """Claims internas extraídas do JWT para uso nas dependencies."""
+    sub: Optional[str] = None
+    tenant_id: Optional[str] = None
+    role: Optional[str] = None
+

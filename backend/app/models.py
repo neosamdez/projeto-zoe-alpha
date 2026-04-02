@@ -34,10 +34,12 @@ class UserRole(str, enum.Enum):
 class User(BaseModel):
     __tablename__ = 'users'
 
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20))
-    role: Mapped[UserRole] = mapped_column(SqlEnum(UserRole, native_enum=False), default=UserRole.CUSTOMER, nullable=False)
+    role: Mapped[UserRole] = mapped_column(SqlEnum(UserRole, native_enum=False), default=UserRole.TECHNICIAN, nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 
 class Lead(BaseModel):
