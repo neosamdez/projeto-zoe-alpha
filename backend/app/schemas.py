@@ -57,3 +57,11 @@ class ServiceOrderResponse(BaseModel):
             return super().model_validate(obj_dict, *args, **kwargs)
         return super().model_validate(obj, *args, **kwargs)
 
+
+from app.models import ServiceStatus
+
+class ServiceOrderStatusUpdate(BaseModel):
+    """
+    [CONTRATO REST RÍGIDO] Atualização de Status da OS
+    """
+    status: ServiceStatus = Field(..., description="Novo estágio da Ordem de Serviço")

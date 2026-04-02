@@ -82,3 +82,38 @@ class OrderService:
         self.db.commit()
         self.db.refresh(db_order)
         return db_order
+
+    def list_orders(self, skip: int = 0, limit: int = 100, status_filter: str = None):
+        """Lista Ordens filtrando pelo Tenant e opcionalmente por status."""
+        query = self.db.query(ServiceOrder).filter(ServiceOrder.tenant_id == self.tenant_id)
+        if status_filter:
+            query = query.filter(ServiceOrder.status == status_filter)
+        return query.order_by(ServiceOrder.created_at.desc()).offset(skip).limit(limit).all()
+
+    def get_order_by_protocol(self, protocol: str) -> ServiceOrder:
+        """Busca detalhada usando protocolo e validando dono (tenant_id)."""
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.protocol == protocol,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço protegida ou não encontrada.")
+            
+        return order
+
+    def update_order_status(self, order_id: uuid.UUID, new_status: ServiceStatus) -> ServiceOrder:
+        """Atualiza a Ordem de Serviço garantindo que o Tenant é o dono e revalida os estagios."""
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço protegida ou não encontrada.")
+
+        order.status = new_status
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
