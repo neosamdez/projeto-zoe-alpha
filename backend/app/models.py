@@ -63,14 +63,10 @@ class ServiceStatus(str, enum.Enum):
 class ServiceOrder(BaseModel):
     __tablename__ = 'service_orders'
 
-    customer_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='RESTRICT'), nullable=False)
-    technician_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    
-    # Device Foreign Key - Dispositivo Omitido Temporariamente na classe de Migração Primária 2.2 conforme o plano
-    # Implementado como ID bruto para a modelagem presente, mantendo a regra de uuid nativo
-    device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True, nullable=False) 
-    
+    lead_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('leads.id', ondelete='RESTRICT'), nullable=False)
+    protocol: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
     status: Mapped[ServiceStatus] = mapped_column(SqlEnum(ServiceStatus, native_enum=False), default=ServiceStatus.OPEN, nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    diagnostic_notes: Mapped[str | None] = mapped_column(Text)
-    total_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
+    device_info: Mapped[str] = mapped_column(Text, nullable=False)
+    technical_notes: Mapped[str | None] = mapped_column(Text)
+    total_value: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
+
