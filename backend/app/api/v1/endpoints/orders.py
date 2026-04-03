@@ -84,18 +84,24 @@ def get_orders_stats(
     "/",
     response_model=List[ServiceOrderResponse],
     summary="Listar Ordens de Serviço",
-    description="Retorna todas as OS do tenant autenticado. Suporta paginação e filtro de status."
+    description="Retorna OS do tenant autenticado. Suporta paginação, filtro de status e busca global (protocol, device_info, lead.name)."
 )
 def list_service_orders(
     skip: int = 0,
     limit: int = 100,
     status: Optional[str] = None,
+    search: Optional[str] = None,  # Sprint 14: O Farol de Busca
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),  # 🔒 JWT required
 ):
-    """Lista paginada das OS do tenant extraído do JWT."""
+    """Lista paginada das OS do tenant. Busca ilike em protocol, device_info e lead.name."""
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
-    return service.list_orders(skip=skip, limit=limit, status_filter=status)
+    return service.list_orders(
+        skip=skip,
+        limit=limit,
+        status_filter=status,
+        search_query=search,
+    )
 
 
 @router.get(

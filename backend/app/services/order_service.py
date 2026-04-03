@@ -83,11 +83,49 @@ class OrderService:
         self.db.refresh(db_order)
         return db_order
 
-    def list_orders(self, skip: int = 0, limit: int = 100, status_filter: str = None):
-        """Lista Ordens filtrando pelo Tenant e opcionalmente por status."""
-        query = self.db.query(ServiceOrder).filter(ServiceOrder.tenant_id == self.tenant_id)
+    def list_orders(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        status_filter: str = None,
+        search_query: str = None,
+    ):
+        """
+        Lista Ordens do Tenant com filtros opcionais de status e busca global.
+
+        Sprint 14 — O Farol de Busca:
+        Se `search_query` for fornecido, aplica ilike (case-insensitive) em:
+          - ServiceOrder.protocol   (ex: "ASI-26-0001")
+          - ServiceOrder.device_info (ex: "Macbook Pro M1")
+          - Lead.name               (ex: "João da Silva")
+
+        O JOIN com Lead é feito apenas quando necessário (busca ativa),
+        evitando overhead desnecessário nas listagens normais.
+        """
+        # Base: sempre filtra pelo tenant do JWT
+        query = self.db.query(ServiceOrder).filter(
+            ServiceOrder.tenant_id == self.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+        )
+
+        # Filtro de status (opcional)
         if status_filter:
             query = query.filter(ServiceOrder.status == status_filter)
+
+        # Busca global (opcional) — JOIN com Lead apenas quando necessário
+        if search_query:
+            term = f"%{search_query.strip()}%"
+            query = (
+                query
+                .join(Lead, ServiceOrder.lead_id == Lead.id)
+                .filter(
+                    # OR entre os 3 campos buscáveis
+                    func.lower(ServiceOrder.protocol).ilike(term) |
+                    func.lower(ServiceOrder.device_info).ilike(term) |
+                    func.lower(Lead.name).ilike(term)
+                )
+            )
+
         return query.order_by(ServiceOrder.created_at.desc()).offset(skip).limit(limit).all()
 
     def get_order_by_protocol(self, protocol: str) -> ServiceOrder:
