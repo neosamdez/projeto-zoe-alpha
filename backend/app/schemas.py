@@ -67,6 +67,18 @@ class ServiceOrderStatusUpdate(BaseModel):
     status: ServiceStatus = Field(..., description="Novo estágio da Ordem de Serviço")
 
 
+class OrdersStats(BaseModel):
+    """
+    [RESPONSE CONTRACT] Estatísticas Agregadas das OS por Tenant.
+    Sprint 12 — O Olho de Hórus.
+    Isolamento total: só conta OS do tenant do JWT.
+    """
+    total: int = Field(..., description="Total de OS ativas (non-deleted)")
+    open: int = Field(..., description="OS com status OPEN")
+    repairing: int = Field(..., description="OS com status IN_REPAIR")
+    completed: int = Field(..., description="OS com status COMPLETED")
+
+
 # ── AUTH SCHEMAS ────────────────────────────────────────────────────────────────
 
 from app.models import UserRole

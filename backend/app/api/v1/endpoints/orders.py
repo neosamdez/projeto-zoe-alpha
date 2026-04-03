@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.schemas import ServiceOrderCreate, ServiceOrderResponse, ServiceOrderStatusUpdate
+from app.schemas import ServiceOrderCreate, ServiceOrderResponse, ServiceOrderStatusUpdate, OrdersStats
 from app.database import get_db
 from app.api.dependencies import get_current_user
 from app.services.order_service import OrderService
@@ -38,6 +38,46 @@ def create_service_order_from_lead(
     """
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     return service.create_order_from_lead(lead_id=lead_id, order_in=order_in)
+
+
+@router.get(
+    "/stats",
+    response_model=OrdersStats,
+    summary="Estatísticas de OS por Tenant",
+    description="Sprint 12: O Olho de Hórus. Retorna contagens agregadas das OS do tenant autenticado."
+)
+def get_orders_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),  # 🔒 JWT required
+):
+    """
+    Agrega as contagens de OS por status para o dashboard.
+    Isolamento multi-tenant garantido: filtra estritamente por tenant_id do JWT.
+    Registros com soft-delete (deleted_at IS NOT NULL) são excluídos da contagem.
+    """
+    from app.models import ServiceOrder, ServiceStatus
+    from sqlalchemy import func
+
+    # Base query: apenas OS do tenant, sem soft-deleted
+    base = (
+        db.query(ServiceOrder)
+        .filter(
+            ServiceOrder.tenant_id == current_user.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+        )
+    )
+
+    total = base.count()
+    open_count = base.filter(ServiceOrder.status == ServiceStatus.OPEN).count()
+    repairing_count = base.filter(ServiceOrder.status == ServiceStatus.IN_REPAIR).count()
+    completed_count = base.filter(ServiceOrder.status == ServiceStatus.COMPLETED).count()
+
+    return OrdersStats(
+        total=total,
+        open=open_count,
+        repairing=repairing_count,
+        completed=completed_count,
+    )
 
 
 @router.get(
