@@ -51,9 +51,10 @@ def get_orders_stats(
     current_user: User = Depends(get_current_user),  # 🔒 JWT required
 ):
     """
-    Agrega as contagens de OS por status para o dashboard.
-    Isolamento multi-tenant garantido: filtra estritamente por tenant_id do JWT.
-    Registros com soft-delete (deleted_at IS NOT NULL) são excluídos da contagem.
+    Agrega contagens e valores financeiros das OS do tenant.
+    Sprint 12: contagens por status.
+    Sprint 16: SUM(total_value) por grupo de status (pipeline vs realizado).
+    Isolamento multi-tenant garantido via tenant_id do JWT.
     """
     from app.models import ServiceOrder, ServiceStatus
     from sqlalchemy import func
@@ -67,17 +68,59 @@ def get_orders_stats(
         )
     )
 
+    # ── Contagens por status ──────────────────────────────────────────────────
     total = base.count()
     open_count = base.filter(ServiceOrder.status == ServiceStatus.OPEN).count()
     repairing_count = base.filter(ServiceOrder.status == ServiceStatus.IN_REPAIR).count()
     completed_count = base.filter(ServiceOrder.status == ServiceStatus.COMPLETED).count()
+
+    # ── Agregações Financeiras (Sprint 16: A Matriz Financeira) ──────────────
+    #
+    # Receita Projetada: OS que ainda estão no pipeline (dinheiro a receber)
+    PIPELINE_STATUSES = [
+        ServiceStatus.OPEN,
+        ServiceStatus.DIAGNOSING,
+        ServiceStatus.AWAITING_APPROVAL,
+        ServiceStatus.APPROVED,
+        ServiceStatus.IN_REPAIR,
+    ]
+
+    # Caixa Realizado: OS efetivamente concluídas (dinheiro recebido ou a receber)
+    REALIZED_STATUSES = [
+        ServiceStatus.COMPLETED,
+        ServiceStatus.DELIVERED,
+    ]
+
+    projected_raw = (
+        db.query(func.sum(ServiceOrder.total_value))
+        .filter(
+            ServiceOrder.tenant_id == current_user.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+            ServiceOrder.status.in_(PIPELINE_STATUSES),
+        )
+        .scalar()
+    )
+
+    realized_raw = (
+        db.query(func.sum(ServiceOrder.total_value))
+        .filter(
+            ServiceOrder.tenant_id == current_user.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+            ServiceOrder.status.in_(REALIZED_STATUSES),
+        )
+        .scalar()
+    )
 
     return OrdersStats(
         total=total,
         open=open_count,
         repairing=repairing_count,
         completed=completed_count,
+        # Coalesce: SUM retorna None quando não há rows — tratamos como 0.0
+        projected_revenue=float(projected_raw or 0.0),
+        realized_revenue=float(realized_raw or 0.0),
     )
+
 
 
 @router.get(

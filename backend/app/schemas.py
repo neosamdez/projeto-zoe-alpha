@@ -76,13 +76,26 @@ class ServiceOrderStatusUpdate(BaseModel):
 class OrdersStats(BaseModel):
     """
     [RESPONSE CONTRACT] Estatísticas Agregadas das OS por Tenant.
-    Sprint 12 — O Olho de Hórus.
-    Isolamento total: só conta OS do tenant do JWT.
+    Sprint 12 — O Olho de Hórus: contagens por status.
+    Sprint 16 — A Matriz Financeira: agregações de valor (SUM).
+    Isolamento total: só conta/soma OS do tenant do JWT.
     """
+    # ── Contagens ────────────────────────────────────────────────────────────
     total: int = Field(..., description="Total de OS ativas (non-deleted)")
     open: int = Field(..., description="OS com status OPEN")
     repairing: int = Field(..., description="OS com status IN_REPAIR")
     completed: int = Field(..., description="OS com status COMPLETED")
+
+    # ── Tesouraria (Sprint 16) ────────────────────────────────────────────────
+    projected_revenue: float = Field(
+        default=0.0,
+        description="Receita Projetada: SUM(total_value) onde status IN (OPEN, IN_REPAIR, DIAGNOSING, AWAITING_APPROVAL, APPROVED)"
+    )
+    realized_revenue: float = Field(
+        default=0.0,
+        description="Caixa Realizado: SUM(total_value) onde status IN (COMPLETED, DELIVERED)"
+    )
+
 
 
 # ── AUTH SCHEMAS ────────────────────────────────────────────────────────────────
