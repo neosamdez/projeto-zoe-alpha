@@ -35,9 +35,11 @@ class ServiceOrderCreate(BaseModel):
 class ServiceOrderResponse(BaseModel):
     """
     [RESPONSE CONTRACT] Retorno completo após Criação da OS.
+    Hotfix Sprint 14: inclui lead_name para exibir na coluna 'Cliente' do dashboard.
     """
     id: uuid.UUID
     lead_id: uuid.UUID
+    lead_name: Optional[str] = None   # Nome do cliente (via JOIN com Lead)
     protocol: str
     status: str
     device_info: str
@@ -50,10 +52,17 @@ class ServiceOrderResponse(BaseModel):
 
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):
-        # Allow converting enum to string representation
+        """
+        Override para:
+        1. Converter enum ServiceStatus em string (ex: ServiceStatus.OPEN → 'OPEN')
+        2. Extrair lead_name do relacionamento SQLAlchemy lazy-loaded (se disponível)
+        """
         if hasattr(obj, 'status') and hasattr(obj.status, 'value'):
             obj_dict = obj.__dict__.copy()
             obj_dict['status'] = obj.status.value
+            # Tenta extrair o nome do lead via atributo _lead injetado pelo service
+            if not obj_dict.get('lead_name') and hasattr(obj, '_lead_name'):
+                obj_dict['lead_name'] = obj._lead_name
             return super().model_validate(obj_dict, *args, **kwargs)
         return super().model_validate(obj, *args, **kwargs)
 

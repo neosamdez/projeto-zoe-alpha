@@ -91,42 +91,44 @@ class OrderService:
         search_query: str = None,
     ):
         """
-        Lista Ordens do Tenant com filtros opcionais de status e busca global.
+        Lista Ordens do Tenant com JOIN em Lead para retornar lead_name.
 
-        Sprint 14 — O Farol de Busca:
-        Se `search_query` for fornecido, aplica ilike (case-insensitive) em:
-          - ServiceOrder.protocol   (ex: "ASI-26-0001")
-          - ServiceOrder.device_info (ex: "Macbook Pro M1")
-          - Lead.name               (ex: "João da Silva")
-
-        O JOIN com Lead é feito apenas quando necessário (busca ativa),
-        evitando overhead desnecessário nas listagens normais.
+        Hotfix Sprint 14:
+        - Sempre faz JOIN com Lead (elimina N+1 queries)
+        - Injeta _lead_name no objeto ServiceOrder (lido pelo model_validate do schema)
+        - Aplica ilike em protocol, device_info e Lead.name se search_query fornecido
         """
-        # Base: sempre filtra pelo tenant do JWT
-        query = self.db.query(ServiceOrder).filter(
-            ServiceOrder.tenant_id == self.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
+        # Base: JOIN com Lead para capturar o nome do cliente em uma única query
+        query = (
+            self.db.query(ServiceOrder, Lead.name.label("lead_name"))
+            .join(Lead, ServiceOrder.lead_id == Lead.id)
+            .filter(
+                ServiceOrder.tenant_id == self.tenant_id,
+                ServiceOrder.deleted_at.is_(None),
+            )
         )
 
         # Filtro de status (opcional)
         if status_filter:
             query = query.filter(ServiceOrder.status == status_filter)
 
-        # Busca global (opcional) — JOIN com Lead apenas quando necessário
+        # Busca global (opcional) — ilike em 3 campos
         if search_query:
             term = f"%{search_query.strip()}%"
-            query = (
-                query
-                .join(Lead, ServiceOrder.lead_id == Lead.id)
-                .filter(
-                    # OR entre os 3 campos buscáveis
-                    func.lower(ServiceOrder.protocol).ilike(term) |
-                    func.lower(ServiceOrder.device_info).ilike(term) |
-                    func.lower(Lead.name).ilike(term)
-                )
+            query = query.filter(
+                func.lower(ServiceOrder.protocol).ilike(term) |
+                func.lower(ServiceOrder.device_info).ilike(term) |
+                func.lower(Lead.name).ilike(term)
             )
 
-        return query.order_by(ServiceOrder.created_at.desc()).offset(skip).limit(limit).all()
+        rows = query.order_by(ServiceOrder.created_at.desc()).offset(skip).limit(limit).all()
+
+        # Injeta _lead_name como atributo dinâmico no objeto ORM
+        # O model_validate do ServiceOrderResponse lê este atributo
+        for order, lead_name in rows:
+            object.__setattr__(order, '_lead_name', lead_name)
+
+        return [order for order, _ in rows]
 
     def get_order_by_protocol(self, protocol: str) -> ServiceOrder:
         """Busca detalhada usando protocolo e validando dono (tenant_id)."""
