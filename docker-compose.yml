@@ -1,4 +1,12 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  O MAESTRO — Docker Compose da Cidadela ASI                             ║
+# ║  Sprint 13: A Convergência Absoluta                                     ║
+# ║  Orquestra: PostgreSQL · FastAPI · Next.js · Adminer                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
 services:
+
+  # ── API: The Smith (FastAPI + Python) ──────────────────────────────────────
   api:
     build:
       context: ./backend
@@ -8,10 +16,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app # Mapeamento para Hot-reload local
+      - ./backend:/app   # Hot-reload: código local montado no container
     env_file:
       - .env
-    # Sobrescrevemos o comando prod do Dockerfile para rodar com --reload
+    # Modo desenvolvimento com --reload automático
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       db:
@@ -19,6 +27,7 @@ services:
     networks:
       - asi_network
 
+  # ── DATABASE: PostgreSQL 16 ─────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     container_name: zoe_asi_db
@@ -39,6 +48,7 @@ services:
     networks:
       - asi_network
 
+  # ── ADMINER: Painel de Banco de Dados ──────────────────────────────────────
   adminer:
     image: adminer:latest
     container_name: zoe_asi_adminer
@@ -52,10 +62,51 @@ services:
     networks:
       - asi_network
 
+  # ── FRONTEND: The Vitruvian (Next.js 16 — Dev Mode) ────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: zoe_asi_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Monta o código-fonte local para habilitar Hot-Reload
+      - ./frontend:/app
+      # Volume anônimo: isola o node_modules do container
+      # Evita que o diretório do host sobrescreva o do container
+      - /app/node_modules
+    environment:
+      # ── ARQUITETURA DE REDE DUAL ──────────────────────────────────────────
+      #
+      # NEXT_PUBLIC_API_URL → variável exposta ao browser (client-side).
+      # O browser roda NA MÁQUINA DO USUÁRIO, fora do Docker.
+      # Logo, ele deve chamar localhost:8000 (porta mapeada pelo Docker).
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      #
+      # INTERNAL_API_URL → variável usada pelo Next.js Server Components/SSR.
+      # O servidor Next.js roda DENTRO do Docker, na rede asi_network.
+      # Logo, ele deve chamar pelo nome do serviço: "api" (DNS interno Docker).
+      # Use esta variável em getAuthHeaders() e chamadas server-side.
+      INTERNAL_API_URL: http://api:8000/api/v1
+      #
+      # Ativa modo escuro por padrão (estética Stark Night)
+      NODE_ENV: development
+      #
+      # Polling de arquivos para Hot-Reload dentro do container
+      WATCHPACK_POLLING: "true"
+    depends_on:
+      - api
+    networks:
+      - asi_network
+
+# ── REDE INTERNA DA CIDADELA ───────────────────────────────────────────────
 networks:
   asi_network:
     driver: bridge
 
+# ── VOLUMES PERSISTENTES ───────────────────────────────────────────────────
 volumes:
   postgres_data:
     name: zoe_asi_pgdata_persist
