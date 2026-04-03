@@ -53,16 +53,13 @@ class ServiceOrderResponse(BaseModel):
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):
         """
-        Override para:
-        1. Converter enum ServiceStatus em string (ex: ServiceStatus.OPEN → 'OPEN')
-        2. Extrair lead_name do relacionamento SQLAlchemy lazy-loaded (se disponível)
+        Override para converter enum ServiceStatus → string.
+        Necessário para endpoints que retornam ORM objects (create, update_status).
+        O list_orders retorna dicts explícitos — não passa por aqui.
         """
         if hasattr(obj, 'status') and hasattr(obj.status, 'value'):
             obj_dict = obj.__dict__.copy()
             obj_dict['status'] = obj.status.value
-            # Tenta extrair o nome do lead via atributo _lead injetado pelo service
-            if not obj_dict.get('lead_name') and hasattr(obj, '_lead_name'):
-                obj_dict['lead_name'] = obj._lead_name
             return super().model_validate(obj_dict, *args, **kwargs)
         return super().model_validate(obj, *args, **kwargs)
 

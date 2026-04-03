@@ -89,14 +89,18 @@ class OrderService:
         limit: int = 100,
         status_filter: str = None,
         search_query: str = None,
-    ):
+    ) -> list[dict]:
         """
-        Lista Ordens do Tenant com JOIN em Lead para retornar lead_name.
+        Lista Ordens do Tenant com JOIN em Lead.
 
-        Hotfix Sprint 14:
-        - Sempre faz JOIN com Lead (elimina N+1 queries)
-        - Injeta _lead_name no objeto ServiceOrder (lido pelo model_validate do schema)
-        - Aplica ilike em protocol, device_info e Lead.name se search_query fornecido
+        Sprint 15 Fix — Pipeline de Dados Correto:
+        Retorna lista de dicts explícitos (NÃO objetos ORM).
+        Isso garante que `lead_name` chegue corretamente ao Pydantic/JSON,
+        sem depender de injeção frágil de atributo em instâncias SQLAlchemy.
+
+        Fluxo:
+          SQL JOIN (ServiceOrder + Lead) → tuple (order, lead_name)
+          → dict com todos os campos → Pydantic valida → JSON com lead_name
         """
         # Base: JOIN com Lead para capturar o nome do cliente em uma única query
         query = (
@@ -123,12 +127,23 @@ class OrderService:
 
         rows = query.order_by(ServiceOrder.created_at.desc()).offset(skip).limit(limit).all()
 
-        # Injeta _lead_name como atributo dinâmico no objeto ORM
-        # O model_validate do ServiceOrderResponse lê este atributo
+        # Constrói dicts explícitos: Pydantic lê diretamente sem magia de ORM
+        result = []
         for order, lead_name in rows:
-            object.__setattr__(order, '_lead_name', lead_name)
+            result.append({
+                "id": order.id,
+                "lead_id": order.lead_id,
+                "lead_name": lead_name,           # ← chave garantida no JSON
+                "protocol": order.protocol,
+                "status": order.status.value,     # ← enum → string aqui, não no Pydantic
+                "device_info": order.device_info,
+                "technical_notes": order.technical_notes,
+                "total_value": float(order.total_value or 0),
+                "created_at": order.created_at,
+            })
 
-        return [order for order, _ in rows]
+        return result
+
 
     def get_order_by_protocol(self, protocol: str) -> ServiceOrder:
         """Busca detalhada usando protocolo e validando dono (tenant_id)."""
