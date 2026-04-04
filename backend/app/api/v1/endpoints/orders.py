@@ -15,7 +15,8 @@ from app.schemas import (
     ServiceOrderResponse, 
     ServiceOrderStatusUpdate, 
     OrdersStats,
-    OrderEventResponse
+    OrderEventResponse,
+    OrderAnalyticsResponse
 )
 from app.database import get_db
 from app.api.dependencies import get_current_user
@@ -156,6 +157,21 @@ def list_service_orders(
 
 
 @router.get(
+    "/analytics",
+    response_model=OrderAnalyticsResponse,
+    summary="Dados de Analytics (Sprint 20)",
+    description="Retorna dados agregados para os gráficos do Reator ARC (Volume e Distribuição)."
+)
+def get_orders_analytics(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.get_analytics(days=days)
+
+
+@router.get(
     "/{protocol}",
     response_model=ServiceOrderResponse,
     summary="Buscar OS por Protocolo",
@@ -201,3 +217,4 @@ def get_order_events(
 ):
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     return service.get_order_events(order_id=order_id)
+

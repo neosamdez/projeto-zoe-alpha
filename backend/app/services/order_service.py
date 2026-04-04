@@ -201,3 +201,46 @@ class OrderService:
             OrderEvent.tenant_id == self.tenant_id
         ).order_by(OrderEvent.created_at.desc()).all()
 
+    def get_analytics(self, days: int = 30) -> dict:
+        """
+        Gera dados de Volume (temporal) e Distribuição (por status).
+        Sprint 20 — O Reator ARC.
+        """
+        from datetime import timedelta
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+        # 1. Volume por Dia (Últimos X dias)
+        volume_query = (
+            self.db.query(
+                func.date(ServiceOrder.created_at).label("date"),
+                func.count(ServiceOrder.id).label("count")
+            )
+            .filter(
+                ServiceOrder.tenant_id == self.tenant_id,
+                ServiceOrder.created_at >= start_date,
+                ServiceOrder.deleted_at.is_(None)
+            )
+            .group_by(func.date(ServiceOrder.created_at))
+            .order_by(func.date(ServiceOrder.created_at))
+            .all()
+        )
+
+        # 2. Distribuição por Status
+        distribution_query = (
+            self.db.query(
+                ServiceOrder.status,
+                func.count(ServiceOrder.id).label("count")
+            )
+            .filter(
+                ServiceOrder.tenant_id == self.tenant_id,
+                ServiceOrder.deleted_at.is_(None)
+            )
+            .group_by(ServiceOrder.status)
+            .all()
+        )
+
+        return {
+            "volume": [{"date": str(d), "count": c} for d, c in volume_query],
+            "distribution": [{"status": s.value, "count": c} for s, c in distribution_query]
+        }
+

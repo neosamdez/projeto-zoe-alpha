@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field, EmailStr
 
 class LeadCreate(BaseModel):
@@ -111,6 +111,21 @@ class OrderEventResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── ANALYTICS (Sprint 20: O Reator Arc) ──────────────────────────────────────
+
+class VolumeAnalyticsItem(BaseModel):
+    date: str  # Formato "YYYY-MM-DD"
+    count: int
+
+class StatusAnalyticsItem(BaseModel):
+    status: str
+    count: int
+
+class OrderAnalyticsResponse(BaseModel):
+    volume: List[VolumeAnalyticsItem]
+    distribution: List[StatusAnalyticsItem]
 
 
 class OrdersStats(BaseModel):
