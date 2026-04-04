@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract, func
-from app.models import ServiceOrder, Lead, ServiceStatus
+from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent
 from app.schemas import ServiceOrderCreate
 
 class OrderService:
@@ -79,6 +79,17 @@ class OrderService:
         )
         
         self.db.add(db_order)
+        self.db.flush() # Para pegar o ID da OS recém-criada
+
+        # [LOG DE AUDITORIA] Registro de Abertura
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=db_order.id,
+            event_type="CREATED",
+            description=f"Ordem de Serviço forjada com protocolo {protocol}."
+        )
+        self.db.add(event)
+
         self.db.commit()
         self.db.refresh(db_order)
         return db_order
@@ -167,8 +178,26 @@ class OrderService:
         if not order:
             raise HTTPException(status_code=404, detail="Ordem de Serviço protegida ou não encontrada.")
 
+        old_status = order.status.value
         order.status = new_status
+
+        # [LOG DE AUDITORIA] Registro de Mudança de Estágio
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=order.id,
+            event_type="STATUS_CHANGED",
+            description=f"Status alterado de {old_status} para {new_status.value}."
+        )
+        self.db.add(event)
+
         self.db.commit()
         self.db.refresh(order)
         return order
+
+    def get_order_events(self, order_id: uuid.UUID) -> list[OrderEvent]:
+        """Recupera a linha do tempo cronológica de uma Ordem de Serviço."""
+        return self.db.query(OrderEvent).filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.tenant_id == self.tenant_id
+        ).order_by(OrderEvent.created_at.desc()).all()
 

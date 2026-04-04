@@ -72,3 +72,17 @@ class ServiceOrder(BaseModel):
     technical_notes: Mapped[str | None] = mapped_column(Text)
     total_value: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
 
+
+class OrderEvent(BaseModel):
+    """
+    [AUDITORIA ABSOLUTA] Registro de Eventos da OS.
+    - STATUS_CHANGED: Mudança de estágio no Kanban.
+    - CREATED: Abertura da OS.
+    - NOTE_ADDED: Adição de observação técnica.
+    """
+    __tablename__ = 'order_events'
+
+    order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('service_orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False) # Ex: STATUS_CHANGED
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+

@@ -10,7 +10,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.schemas import ServiceOrderCreate, ServiceOrderResponse, ServiceOrderStatusUpdate, OrdersStats
+from app.schemas import (
+    ServiceOrderCreate, 
+    ServiceOrderResponse, 
+    ServiceOrderStatusUpdate, 
+    OrdersStats,
+    OrderEventResponse
+)
 from app.database import get_db
 from app.api.dependencies import get_current_user
 from app.services.order_service import OrderService
@@ -180,3 +186,18 @@ def update_service_order_status(
     """Atualiza o status da OS com proteção dupla: JWT + tenant_id do token."""
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     return service.update_order_status(order_id=order_id, new_status=update_in.status)
+
+
+@router.get(
+    "/{order_id}/events",
+    response_model=list[OrderEventResponse],
+    summary="Linha do Tempo da OS",
+    description="Retorna o histórico de eventos e auditoria de uma Ordem de Serviço específica."
+)
+def get_order_events(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.get_order_events(order_id=order_id)

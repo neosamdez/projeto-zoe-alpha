@@ -100,6 +100,19 @@ class ServiceOrderStatusUpdate(BaseModel):
     status: ServiceStatus = Field(..., description="Novo estágio da Ordem de Serviço")
 
 
+class OrderEventResponse(BaseModel):
+    """
+    [RESPONSE CONTRACT] Detalhes de um log de auditoria.
+    """
+    id: uuid.UUID
+    event_type: str
+    description: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class OrdersStats(BaseModel):
     """
     [RESPONSE CONTRACT] Estatísticas Agregadas das OS por Tenant.
