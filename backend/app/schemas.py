@@ -23,6 +23,33 @@ class LeadResponse(BaseModel):
     message: str = "Lead Amenti Registrado com Sucesso."
     created_at: datetime
 
+class LeadUpdate(BaseModel):
+    """
+    [CONTRATO REST RÍGIDO] Atualização de Dados Cadastrais.
+    """
+    name: Optional[str] = Field(None, max_length=255)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    device_interest: Optional[str] = Field(None, max_length=150)
+    notes: Optional[str] = None
+
+class LeadListItem(BaseModel):
+    """
+    [RESPONSE CONTRACT] Item de Listagem no CRM com métricas.
+    """
+    id: uuid.UUID
+    name: str
+    email: EmailStr
+    phone: str
+    created_at: datetime
+    total_os: int = 0
+
+class LeadDetails(LeadListItem):
+    """
+    [RESPONSE CONTRACT] Detalhes completos + Histórico de Ordens.
+    """
+    os_history: list["ServiceOrderResponse"] = []
+
 
 class ServiceOrderCreate(BaseModel):
     """
