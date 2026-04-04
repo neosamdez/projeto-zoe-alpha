@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract, func
-from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart
+from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product
 from app.schemas import ServiceOrderCreate, OrderPartCreate
 
 class OrderService:
@@ -246,7 +246,10 @@ class OrderService:
         }
 
     def add_order_part(self, order_id: uuid.UUID, part_in: OrderPartCreate) -> OrderPart:
-        """Adiciona um insumo à OS e atualiza o custo total de peças."""
+        """
+        Adiciona um insumo à OS e atualiza o custo total de peças.
+        SPRINT 22: Baixa automática do Arsenal se vinculado a um Produto.
+        """
         order = self.db.query(ServiceOrder).filter(
             ServiceOrder.id == order_id,
             ServiceOrder.tenant_id == self.tenant_id
@@ -255,9 +258,30 @@ class OrderService:
         if not order:
             raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
 
+        # ── [CONTROLE DE ARSENAL] ──
+        if part_in.product_id:
+            product = self.db.query(Product).filter(
+                Product.id == part_in.product_id,
+                Product.tenant_id == self.tenant_id,
+                Product.deleted_at.is_(None)
+            ).first()
+
+            if not product:
+                raise HTTPException(status_code=404, detail="Produto não registrado no Arsenal.")
+            
+            if product.quantity <= 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Estoque Insuficiente: {product.name} esgotado no arsenal."
+                )
+
+            # Baixa automática no Inventário
+            product.quantity -= 1
+
         db_part = OrderPart(
             tenant_id=self.tenant_id,
             order_id=order_id,
+            product_id=part_in.product_id,
             description=part_in.description,
             cost=part_in.cost
         )
@@ -271,7 +295,10 @@ class OrderService:
         return db_part
 
     def remove_order_part(self, part_id: uuid.UUID):
-        """Remove um insumo e abate o valor do custo total da OS."""
+        """
+        Remove um insumo e abate o valor do custo total da OS.
+        SPRINT 22: Estorna a quantidade para o Arsenal se houver vínculo com Produto.
+        """
         part = self.db.query(OrderPart).filter(
             OrderPart.id == part_id,
             OrderPart.tenant_id == self.tenant_id
@@ -279,6 +306,15 @@ class OrderService:
 
         if not part:
             raise HTTPException(status_code=404, detail="Insumo não encontrado.")
+
+        # ── [ESTORNO LOGÍSTICO] ──
+        if part.product_id:
+            product = self.db.query(Product).filter(
+                Product.id == part.product_id,
+                Product.tenant_id == self.tenant_id
+            ).first()
+            if product:
+                product.quantity += 1
 
         order = self.db.query(ServiceOrder).filter(
             ServiceOrder.id == part.order_id

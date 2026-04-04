@@ -119,10 +119,12 @@ class OrderEventResponse(BaseModel):
 class OrderPartCreate(BaseModel):
     description: str = Field(..., max_length=255)
     cost: float = Field(..., gt=0)
+    product_id: Optional[uuid.UUID] = None
 
 class OrderPartResponse(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
+    product_id: Optional[uuid.UUID] = None
     description: str
     cost: float
     created_at: datetime
@@ -233,4 +235,33 @@ class TokenData(BaseModel):
     sub: Optional[str] = None
     tenant_id: Optional[str] = None
     role: Optional[str] = None
+
+
+# ── INVENTORY (Sprint 22: O Arsenal de Elite) ───────────────────────────
+
+class ProductBase(BaseModel):
+    name: str = Field(..., max_length=255)
+    sku: str = Field(..., max_length=100)
+    category: str = Field(..., max_length=100)
+    unit_cost: float = Field(..., gt=0)
+    quantity: int = Field(default=0, ge=0)
+    min_stock: int = Field(default=0, ge=0)
+
+class ProductCreate(ProductBase):
+    pass
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    sku: Optional[str] = Field(None, max_length=100)
+    category: Optional[str] = Field(None, max_length=100)
+    unit_cost: Optional[float] = Field(None, gt=0)
+    quantity: Optional[int] = Field(None, ge=0)
+    min_stock: Optional[int] = Field(None, ge=0)
+
+class ProductResponse(ProductBase):
+    id: uuid.UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
