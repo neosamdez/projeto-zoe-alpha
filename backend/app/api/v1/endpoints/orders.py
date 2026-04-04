@@ -76,16 +76,18 @@ def get_orders_stats(
 
     # ── Agregações Financeiras (Sprint 16: A Matriz Financeira) ──────────────
     #
-    # Receita Projetada: OS que ainda estão no pipeline (dinheiro a receber)
+    # Status reais do ServiceStatus (verificado em app/models.py):
+    # OPEN | DIAGNOSING | AWAITING_PARTS | IN_REPAIR | COMPLETED | DELIVERED | CANCELED
+    #
+    # Receita Projetada: OS em pipeline ativo (dinheiro ainda a receber)
     PIPELINE_STATUSES = [
         ServiceStatus.OPEN,
         ServiceStatus.DIAGNOSING,
-        ServiceStatus.AWAITING_APPROVAL,
-        ServiceStatus.APPROVED,
+        ServiceStatus.AWAITING_PARTS,
         ServiceStatus.IN_REPAIR,
     ]
 
-    # Caixa Realizado: OS efetivamente concluídas (dinheiro recebido ou a receber)
+    # Caixa Realizado: OS efetivamente encerradas com sucesso
     REALIZED_STATUSES = [
         ServiceStatus.COMPLETED,
         ServiceStatus.DELIVERED,
