@@ -62,10 +62,24 @@ class ServiceStatus(str, enum.Enum):
     CANCELED = 'CANCELED'
 
 
+class Technician(BaseModel):
+    """
+    [MESTRES DA BANCADA] Identidade técnica operacional.
+    Responsável pela execução e lucro de cada OS.
+    """
+    __tablename__ = 'technicians'
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    specialization: Mapped[str | None] = mapped_column(String(255))
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+
 class ServiceOrder(BaseModel):
     __tablename__ = 'service_orders'
 
     lead_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('leads.id', ondelete='RESTRICT'), nullable=False)
+    technician_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('technicians.id', ondelete='SET NULL'), nullable=True, index=True)
+    
     protocol: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
     status: Mapped[ServiceStatus] = mapped_column(SqlEnum(ServiceStatus, native_enum=False), default=ServiceStatus.OPEN, nullable=False)
     device_info: Mapped[str] = mapped_column(Text, nullable=False)

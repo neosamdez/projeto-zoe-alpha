@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, func
-from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product
-from app.schemas import ServiceOrderCreate, OrderPartCreate
+from sqlalchemy import extract, func, desc
+from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product, Technician
+from app.schemas import ServiceOrderCreate, OrderPartCreate, OrdersStats, TechnicianProfit
 
 class OrderService:
     """
@@ -113,10 +113,15 @@ class OrderService:
           SQL JOIN (ServiceOrder + Lead) → tuple (order, lead_name)
           → dict com todos os campos → Pydantic valida → JSON com lead_name
         """
-        # Base: JOIN com Lead para capturar o nome do cliente em uma única query
+        # Base: JOIN com Lead e LEFT JOIN com Technician
         query = (
-            self.db.query(ServiceOrder, Lead.name.label("lead_name"))
+            self.db.query(
+                ServiceOrder, 
+                Lead.name.label("lead_name"),
+                Technician.name.label("technician_name")
+            )
             .join(Lead, ServiceOrder.lead_id == Lead.id)
+            .outerjoin(Technician, ServiceOrder.technician_id == Technician.id)
             .filter(
                 ServiceOrder.tenant_id == self.tenant_id,
                 ServiceOrder.deleted_at.is_(None),
@@ -140,17 +145,19 @@ class OrderService:
 
         # Constrói dicts explícitos: Pydantic lê diretamente sem magia de ORM
         result = []
-        for order, lead_name in rows:
+        for order, lead_name, tech_name in rows:
             result.append({
                 "id": order.id,
                 "lead_id": order.lead_id,
-                "lead_name": lead_name,           # ← chave garantida no JSON
+                "lead_name": lead_name,
                 "protocol": order.protocol,
-                "status": order.status.value,     # ← enum → string aqui, não no Pydantic
+                "status": order.status.value,
                 "device_info": order.device_info,
                 "technical_notes": order.technical_notes,
                 "total_value": float(order.total_value or 0),
                 "parts_cost": float(order.parts_cost or 0),
+                "technician_id": order.technician_id,
+                "technician": {"id": order.technician_id, "name": tech_name} if order.technician_id else None,
                 "created_at": order.created_at,
             })
 
@@ -244,6 +251,98 @@ class OrderService:
             "volume": [{"date": str(d), "count": c} for d, c in volume_query],
             "distribution": [{"status": s.value, "count": c} for s, c in distribution_query]
         }
+
+    def get_stats(self) -> OrdersStats:
+        """
+        [AGGREGATION CORE] Inteligência Financeira e Operacional.
+        Consolida contagens e agregações de receita, custos e ranking de técnicos.
+        """
+        # Status de Pipeline e Realizados
+        PIPELINE_STATUSES = [ServiceStatus.OPEN, ServiceStatus.DIAGNOSING, ServiceStatus.AWAITING_PARTS, ServiceStatus.IN_REPAIR]
+        REALIZED_STATUSES = [ServiceStatus.COMPLETED, ServiceStatus.DELIVERED]
+
+        # 1. Contagens Básicas
+        counts = self.db.query(
+            func.count(ServiceOrder.id).label("total"),
+            func.sum(func.case((ServiceOrder.status == ServiceStatus.OPEN, 1), else_=0)).label("open"),
+            func.sum(func.case((ServiceOrder.status == ServiceStatus.IN_REPAIR, 1), else_=0)).label("repairing"),
+            func.sum(func.case((ServiceOrder.status == ServiceStatus.COMPLETED, 1), else_=0)).label("completed")
+        ).filter(ServiceOrder.tenant_id == self.tenant_id, ServiceOrder.deleted_at.is_(None)).first()
+
+        # 2. Agregações Monetárias
+        monetary = self.db.query(
+            func.sum(func.case((ServiceOrder.status.in_(PIPELINE_STATUSES), ServiceOrder.total_value), else_=0)).label("projected"),
+            func.sum(func.case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value), else_=0)).label("realized"),
+            func.sum(ServiceOrder.parts_cost).label("total_parts_cost"),
+            func.sum(func.case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value - ServiceOrder.parts_cost), else_=0)).label("net_profit")
+        ).filter(ServiceOrder.tenant_id == self.tenant_id, ServiceOrder.deleted_at.is_(None)).first()
+
+        # 3. Ranking de Elite (Lucro por Técnico) — SPRINT 23
+        ranking_query = (
+            self.db.query(
+                Technician.id.label("technician_id"),
+                Technician.name.label("name"),
+                func.sum(ServiceOrder.total_value - ServiceOrder.parts_cost).label("profit")
+            )
+            .join(ServiceOrder, ServiceOrder.technician_id == Technician.id)
+            .filter(
+                ServiceOrder.tenant_id == self.tenant_id,
+                ServiceOrder.deleted_at.is_(None),
+                ServiceOrder.status.in_(REALIZED_STATUSES)
+            )
+            .group_by(Technician.id, Technician.name)
+            .order_by(desc("profit"))
+            .all()
+        )
+
+        return OrdersStats(
+            total=counts.total or 0,
+            open=int(counts.open or 0),
+            repairing=int(counts.repairing or 0),
+            completed=int(counts.completed or 0),
+            projected_revenue=float(monetary.projected or 0.0),
+            realized_revenue=float(monetary.realized or 0.0),
+            total_parts_cost=float(monetary.total_parts_cost or 0.0),
+            realized_net_profit=float(monetary.net_profit or 0.0),
+            technician_ranking=[
+                TechnicianProfit(technician_id=r.technician_id, name=r.name, profit=float(r.profit))
+                for r in ranking_query
+            ]
+        )
+
+    def assign_technician(self, order_id: uuid.UUID, technician_id: uuid.UUID | None) -> ServiceOrder:
+        """Atribui ou remove a responsabilidade técnica de uma Ordem de Serviço."""
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        if technician_id:
+            tech = self.db.query(Technician).filter(
+                Technician.id == technician_id,
+                Technician.tenant_id == self.tenant_id
+            ).first()
+            if not tech:
+                raise HTTPException(status_code=404, detail="Técnico não encontrado.")
+        
+        order.technician_id = technician_id
+        
+        # Log de Audioria
+        description = f"Técnico atribuído: {tech.name}" if technician_id else "Responsabilidade técnica removida."
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=order_id,
+            event_type="TECH_ASSIGNED",
+            description=description
+        )
+        self.db.add(event)
+        
+        self.db.commit()
+        self.db.refresh(order)
+        return order
 
     def add_order_part(self, order_id: uuid.UUID, part_in: OrderPartCreate) -> OrderPart:
         """

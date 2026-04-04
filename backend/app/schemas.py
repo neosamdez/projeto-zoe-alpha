@@ -73,6 +73,8 @@ class ServiceOrderResponse(BaseModel):
     technical_notes: Optional[str] = None
     total_value: float
     parts_cost: float = 0.00
+    technician_id: Optional[uuid.UUID] = None
+    technician: Optional["TechnicianResponse"] = None
     created_at: datetime
 
     class Config:
@@ -180,6 +182,12 @@ class OrdersStats(BaseModel):
         default=0.0,
         description="Lucro Líquido Realizado: (SUM(total_value) - SUM(parts_cost)) de OS Concluídas"
     )
+    technician_ranking: List["TechnicianProfit"] = []
+
+class TechnicianProfit(BaseModel):
+    technician_id: uuid.UUID
+    name: str
+    profit: float
 
 
 
@@ -260,6 +268,29 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(ProductBase):
     id: uuid.UUID
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── TECHNICIANS (Sprint 23: Gestão de Mestres) ───────────────────────────
+
+class TechnicianCreate(BaseModel):
+    name: str = Field(..., max_length=255)
+    specialization: Optional[str] = Field(None, max_length=255)
+    is_active: bool = True
+
+class TechnicianUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+    specialization: Optional[str] = Field(None, max_length=255)
+    is_active: Optional[bool] = None
+
+class TechnicianResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    specialization: Optional[str] = None
+    is_active: bool
     created_at: datetime
 
     class Config:

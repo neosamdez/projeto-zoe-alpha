@@ -52,108 +52,15 @@ def create_service_order_from_lead(
 @router.get(
     "/stats",
     response_model=OrdersStats,
-    summary="Estatísticas de OS por Tenant",
-    description="Sprint 12: O Olho de Hórus. Retorna contagens agregadas das OS do tenant autenticado."
+    summary="Estatísticas Financeiras e Operacionais (Sprint 23)"
 )
 def get_orders_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 🔒 JWT required
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Agrega contagens e valores financeiros das OS do tenant.
-    Sprint 12: contagens por status.
-    Sprint 16: SUM(total_value) por grupo de status (pipeline vs realizado).
-    Isolamento multi-tenant garantido via tenant_id do JWT.
-    """
-    from app.models import ServiceOrder, ServiceStatus
-    from sqlalchemy import func
-
-    # Base query: apenas OS do tenant, sem soft-deleted
-    base = (
-        db.query(ServiceOrder)
-        .filter(
-            ServiceOrder.tenant_id == current_user.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
-        )
-    )
-
-    # ── Contagens por status ──────────────────────────────────────────────────
-    total = base.count()
-    open_count = base.filter(ServiceOrder.status == ServiceStatus.OPEN).count()
-    repairing_count = base.filter(ServiceOrder.status == ServiceStatus.IN_REPAIR).count()
-    completed_count = base.filter(ServiceOrder.status == ServiceStatus.COMPLETED).count()
-
-    # ── Agregações Financeiras (Sprint 16: A Matriz Financeira) ──────────────
-    #
-    # Status reais do ServiceStatus (verificado em app/models.py):
-    # OPEN | DIAGNOSING | AWAITING_PARTS | IN_REPAIR | COMPLETED | DELIVERED | CANCELED
-    #
-    # Receita Projetada: OS em pipeline ativo (dinheiro ainda a receber)
-    PIPELINE_STATUSES = [
-        ServiceStatus.OPEN,
-        ServiceStatus.DIAGNOSING,
-        ServiceStatus.AWAITING_PARTS,
-        ServiceStatus.IN_REPAIR,
-    ]
-
-    # Caixa Realizado: OS efetivamente encerradas com sucesso
-    REALIZED_STATUSES = [
-        ServiceStatus.COMPLETED,
-        ServiceStatus.DELIVERED,
-    ]
-
-    projected_raw = (
-        db.query(func.sum(ServiceOrder.total_value))
-        .filter(
-            ServiceOrder.tenant_id == current_user.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
-            ServiceOrder.status.in_(PIPELINE_STATUSES),
-        )
-        .scalar()
-    )
-
-    realized_raw = (
-        db.query(func.sum(ServiceOrder.total_value))
-        .filter(
-            ServiceOrder.tenant_id == current_user.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
-            ServiceOrder.status.in_(REALIZED_STATUSES),
-        )
-        .scalar()
-    )
-
-    # ── Métrica de Custos e Lucro Real (Sprint 21) ───────────────────────────
-    total_parts_cost_raw = (
-        db.query(func.sum(ServiceOrder.parts_cost))
-        .filter(
-            ServiceOrder.tenant_id == current_user.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
-        )
-        .scalar()
-    )
-
-    realized_profit_raw = (
-        db.query(func.sum(ServiceOrder.total_value - ServiceOrder.parts_cost))
-        .filter(
-            ServiceOrder.tenant_id == current_user.tenant_id,
-            ServiceOrder.deleted_at.is_(None),
-            ServiceOrder.status.in_(REALIZED_STATUSES),
-        )
-        .scalar()
-    )
-
-    return OrdersStats(
-        total=total,
-        open=open_count,
-        repairing=repairing_count,
-        completed=completed_count,
-        # Coalesce: SUM retorna None quando não há rows — tratamos como 0.0
-        projected_revenue=float(projected_raw or 0.0),
-        realized_revenue=float(realized_raw or 0.0),
-        total_parts_cost=float(total_parts_cost_raw or 0.0),
-        realized_net_profit=float(realized_profit_raw or 0.0),
-    )
-
+    """Agregação dinâmica de OS, Lucro e Ranking de Técnicos do Tenant."""
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.get_stats()
 
 
 @router.get(
@@ -238,6 +145,18 @@ def remove_order_part(
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     service.remove_order_part(part_id=part_id)
     return None
+
+
+@router.patch("/{order_id}/assign", response_model=ServiceOrderResponse)
+def assign_technician(
+    order_id: uuid.UUID,
+    technician_id: Optional[uuid.UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Atribuição Técnica: Vincula um mestre à OS."""
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.assign_technician(order_id, technician_id)
 
 
 @router.get(
