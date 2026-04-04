@@ -71,6 +71,7 @@ class ServiceOrder(BaseModel):
     device_info: Mapped[str] = mapped_column(Text, nullable=False)
     technical_notes: Mapped[str | None] = mapped_column(Text)
     total_value: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
+    parts_cost: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
 
 
 class OrderEvent(BaseModel):
@@ -85,4 +86,16 @@ class OrderEvent(BaseModel):
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('service_orders.id', ondelete='CASCADE'), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False) # Ex: STATUS_CHANGED
     description: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class OrderPart(BaseModel):
+    """
+    [CENTRAL DE CUSTOS] Insumos e Peças vinculadas à OS.
+    Permite o cálculo de Lucro Líquido Real.
+    """
+    __tablename__ = 'order_parts'
+
+    order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('service_orders.id', ondelete='CASCADE'), nullable=False, index=True)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
 

@@ -16,7 +16,9 @@ from app.schemas import (
     ServiceOrderStatusUpdate, 
     OrdersStats,
     OrderEventResponse,
-    OrderAnalyticsResponse
+    OrderAnalyticsResponse,
+    OrderPartCreate,
+    OrderPartResponse
 )
 from app.database import get_db
 from app.api.dependencies import get_current_user
@@ -120,6 +122,26 @@ def get_orders_stats(
         .scalar()
     )
 
+    # ── Métrica de Custos e Lucro Real (Sprint 21) ───────────────────────────
+    total_parts_cost_raw = (
+        db.query(func.sum(ServiceOrder.parts_cost))
+        .filter(
+            ServiceOrder.tenant_id == current_user.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+        )
+        .scalar()
+    )
+
+    realized_profit_raw = (
+        db.query(func.sum(ServiceOrder.total_value - ServiceOrder.parts_cost))
+        .filter(
+            ServiceOrder.tenant_id == current_user.tenant_id,
+            ServiceOrder.deleted_at.is_(None),
+            ServiceOrder.status.in_(REALIZED_STATUSES),
+        )
+        .scalar()
+    )
+
     return OrdersStats(
         total=total,
         open=open_count,
@@ -128,6 +150,8 @@ def get_orders_stats(
         # Coalesce: SUM retorna None quando não há rows — tratamos como 0.0
         projected_revenue=float(projected_raw or 0.0),
         realized_revenue=float(realized_raw or 0.0),
+        total_parts_cost=float(total_parts_cost_raw or 0.0),
+        realized_net_profit=float(realized_profit_raw or 0.0),
     )
 
 
@@ -169,6 +193,51 @@ def get_orders_analytics(
 ):
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     return service.get_analytics(days=days)
+
+
+@router.post(
+    "/{order_id}/parts",
+    response_model=OrderPartResponse,
+    summary="Adicionar Insumo à OS",
+    description="Registra uma peça ou custo operacional na Ordem de Serviço."
+)
+def add_order_part(
+    order_id: uuid.UUID,
+    part_in: OrderPartCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.add_order_part(order_id=order_id, part_in=part_in)
+
+
+@router.get(
+    "/{order_id}/parts",
+    response_model=list[OrderPartResponse],
+    summary="Listar Insumos da OS"
+)
+def get_order_parts(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.get_order_parts(order_id=order_id)
+
+
+@router.delete(
+    "/parts/{part_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remover Insumo"
+)
+def remove_order_part(
+    part_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    service.remove_order_part(part_id=part_id)
+    return None
 
 
 @router.get(

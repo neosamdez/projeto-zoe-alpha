@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract, func
-from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent
-from app.schemas import ServiceOrderCreate
+from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart
+from app.schemas import ServiceOrderCreate, OrderPartCreate
 
 class OrderService:
     """
@@ -150,6 +150,7 @@ class OrderService:
                 "device_info": order.device_info,
                 "technical_notes": order.technical_notes,
                 "total_value": float(order.total_value or 0),
+                "parts_cost": float(order.parts_cost or 0),
                 "created_at": order.created_at,
             })
 
@@ -243,4 +244,56 @@ class OrderService:
             "volume": [{"date": str(d), "count": c} for d, c in volume_query],
             "distribution": [{"status": s.value, "count": c} for s, c in distribution_query]
         }
+
+    def add_order_part(self, order_id: uuid.UUID, part_in: OrderPartCreate) -> OrderPart:
+        """Adiciona um insumo à OS e atualiza o custo total de peças."""
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        db_part = OrderPart(
+            tenant_id=self.tenant_id,
+            order_id=order_id,
+            description=part_in.description,
+            cost=part_in.cost
+        )
+        self.db.add(db_part)
+        
+        # Atualiza custo acumulado na OS (Cache tático)
+        order.parts_cost = float(order.parts_cost or 0) + float(part_in.cost)
+        
+        self.db.commit()
+        self.db.refresh(db_part)
+        return db_part
+
+    def remove_order_part(self, part_id: uuid.UUID):
+        """Remove um insumo e abate o valor do custo total da OS."""
+        part = self.db.query(OrderPart).filter(
+            OrderPart.id == part_id,
+            OrderPart.tenant_id == self.tenant_id
+        ).first()
+
+        if not part:
+            raise HTTPException(status_code=404, detail="Insumo não encontrado.")
+
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == part.order_id
+        ).first()
+
+        if order:
+            order.parts_cost = float(order.parts_cost or 0) - float(part.cost)
+
+        self.db.delete(part)
+        self.db.commit()
+
+    def get_order_parts(self, order_id: uuid.UUID) -> list[OrderPart]:
+        """Lista todos os insumos vinculados a uma OS específica."""
+        return self.db.query(OrderPart).filter(
+            OrderPart.order_id == order_id,
+            OrderPart.tenant_id == self.tenant_id
+        ).all()
 

@@ -72,6 +72,7 @@ class ServiceOrderResponse(BaseModel):
     device_info: str
     technical_notes: Optional[str] = None
     total_value: float
+    parts_cost: float = 0.00
     created_at: datetime
 
     class Config:
@@ -107,6 +108,23 @@ class OrderEventResponse(BaseModel):
     id: uuid.UUID
     event_type: str
     description: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── ORDER PARTS (Sprint 21: A Central de Custos) ───────────────────────────
+
+class OrderPartCreate(BaseModel):
+    description: str = Field(..., max_length=255)
+    cost: float = Field(..., gt=0)
+
+class OrderPartResponse(BaseModel):
+    id: uuid.UUID
+    order_id: uuid.UUID
+    description: str
+    cost: float
     created_at: datetime
 
     class Config:
@@ -149,6 +167,16 @@ class OrdersStats(BaseModel):
     realized_revenue: float = Field(
         default=0.0,
         description="Caixa Realizado: SUM(total_value) onde status IN (COMPLETED, DELIVERED)"
+    )
+
+    # ── CENTRAL DE CUSTOS (Sprint 21) ──────────────────────────────────────────
+    total_parts_cost: float = Field(
+        default=0.0,
+        description="Custo Total: SUM(parts_cost) de todas as OS não deletadas."
+    )
+    realized_net_profit: float = Field(
+        default=0.0,
+        description="Lucro Líquido Realizado: (SUM(total_value) - SUM(parts_cost)) de OS Concluídas"
     )
 
 
