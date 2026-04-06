@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, func, desc
+from sqlalchemy import extract, func, desc, case
 from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product, Technician
 from app.schemas import ServiceOrderCreate, OrderPartCreate, OrdersStats, TechnicianProfit
 
@@ -257,25 +257,49 @@ class OrderService:
         [AGGREGATION CORE] Inteligência Financeira e Operacional.
         Consolida contagens e agregações de receita, custos e ranking de técnicos.
         """
+        # 0. Blindagem Anti-Null (Early Return)
+        total_orders_count = self.db.query(func.count(ServiceOrder.id)).filter(
+            ServiceOrder.tenant_id == self.tenant_id, 
+            ServiceOrder.deleted_at.is_(None)
+        ).scalar() or 0
+
+        if total_orders_count == 0:
+            return OrdersStats(
+                total=0,
+                open=0,
+                repairing=0,
+                completed=0,
+                projected_revenue=0.0,
+                realized_revenue=0.0,
+                total_parts_cost=0.0,
+                realized_net_profit=0.0,
+                technician_ranking=[]
+            )
+
         # Status de Pipeline e Realizados
         PIPELINE_STATUSES = [ServiceStatus.OPEN, ServiceStatus.DIAGNOSING, ServiceStatus.AWAITING_PARTS, ServiceStatus.IN_REPAIR]
         REALIZED_STATUSES = [ServiceStatus.COMPLETED, ServiceStatus.DELIVERED]
 
-        # 1. Contagens Básicas
+        # 1. Contagens Básicas (usando SQLAlchemy 'case' purista)
         counts = self.db.query(
-            func.count(ServiceOrder.id).label("total"),
-            func.sum(func.case((ServiceOrder.status == ServiceStatus.OPEN, 1), else_=0)).label("open"),
-            func.sum(func.case((ServiceOrder.status == ServiceStatus.IN_REPAIR, 1), else_=0)).label("repairing"),
-            func.sum(func.case((ServiceOrder.status == ServiceStatus.COMPLETED, 1), else_=0)).label("completed")
-        ).filter(ServiceOrder.tenant_id == self.tenant_id, ServiceOrder.deleted_at.is_(None)).first()
+            func.sum(case((ServiceOrder.status == ServiceStatus.OPEN, 1), else_=0)).label("open"),
+            func.sum(case((ServiceOrder.status == ServiceStatus.IN_REPAIR, 1), else_=0)).label("repairing"),
+            func.sum(case((ServiceOrder.status == ServiceStatus.COMPLETED, 1), else_=0)).label("completed")
+        ).filter(
+            ServiceOrder.tenant_id == self.tenant_id, 
+            ServiceOrder.deleted_at.is_(None)
+        ).first()
 
         # 2. Agregações Monetárias
         monetary = self.db.query(
-            func.sum(func.case((ServiceOrder.status.in_(PIPELINE_STATUSES), ServiceOrder.total_value), else_=0)).label("projected"),
-            func.sum(func.case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value), else_=0)).label("realized"),
+            func.sum(case((ServiceOrder.status.in_(PIPELINE_STATUSES), ServiceOrder.total_value), else_=0)).label("projected"),
+            func.sum(case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value), else_=0)).label("realized"),
             func.sum(ServiceOrder.parts_cost).label("total_parts_cost"),
-            func.sum(func.case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value - ServiceOrder.parts_cost), else_=0)).label("net_profit")
-        ).filter(ServiceOrder.tenant_id == self.tenant_id, ServiceOrder.deleted_at.is_(None)).first()
+            func.sum(case((ServiceOrder.status.in_(REALIZED_STATUSES), ServiceOrder.total_value - ServiceOrder.parts_cost), else_=0)).label("net_profit")
+        ).filter(
+            ServiceOrder.tenant_id == self.tenant_id, 
+            ServiceOrder.deleted_at.is_(None)
+        ).first()
 
         # 3. Ranking de Elite (Lucro por Técnico) — SPRINT 23
         ranking_query = (
@@ -296,16 +320,16 @@ class OrderService:
         )
 
         return OrdersStats(
-            total=counts.total or 0,
-            open=int(counts.open or 0),
-            repairing=int(counts.repairing or 0),
-            completed=int(counts.completed or 0),
-            projected_revenue=float(monetary.projected or 0.0),
-            realized_revenue=float(monetary.realized or 0.0),
-            total_parts_cost=float(monetary.total_parts_cost or 0.0),
-            realized_net_profit=float(monetary.net_profit or 0.0),
+            total=total_orders_count,
+            open=int(counts.open or 0) if counts else 0,
+            repairing=int(counts.repairing or 0) if counts else 0,
+            completed=int(counts.completed or 0) if counts else 0,
+            projected_revenue=float(monetary.projected or 0.0) if monetary else 0.0,
+            realized_revenue=float(monetary.realized or 0.0) if monetary else 0.0,
+            total_parts_cost=float(monetary.total_parts_cost or 0.0) if monetary else 0.0,
+            realized_net_profit=float(monetary.net_profit or 0.0) if monetary else 0.0,
             technician_ranking=[
-                TechnicianProfit(technician_id=r.technician_id, name=r.name, profit=float(r.profit))
+                TechnicianProfit(technician_id=r.technician_id, name=r.name, profit=float(r.profit or 0))
                 for r in ranking_query
             ]
         )

@@ -26,7 +26,6 @@ router = APIRouter()
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """
     [POST /auth/login]
@@ -34,7 +33,7 @@ def login(
     - password = senha em texto plano
     Retorna: { access_token, token_type: 'bearer' }
     """
-    service = AuthService(db=db, tenant_id=tenant_id)
+    service = AuthService(db=db)
     user = service.authenticate_user(email=form_data.username, password=form_data.password)
 
     token_data = {
@@ -58,12 +57,11 @@ def login(
 def register(
     user_in: UserCreate,
     db: Session = Depends(get_db),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """
     [POST /auth/register]
     Registra um novo Operador. Hasheia a senha e isola por tenant_id.
     """
-    service = AuthService(db=db, tenant_id=tenant_id)
+    service = AuthService(db=db)
     user = service.register_user(user_in=user_in)
     return UserResponse.model_validate(user)

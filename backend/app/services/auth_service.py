@@ -13,32 +13,35 @@ from app.core.security import get_password_hash, verify_password
 
 
 class AuthService:
-    def __init__(self, db: Session, tenant_id: uuid.UUID):
+    def __init__(self, db: Session, tenant_id: uuid.UUID = None):
         self.db = db
         self.tenant_id = tenant_id
 
     def register_user(self, user_in: UserCreate) -> User:
         """
-        Registra um novo Operador no Tenant.
-        Trava de duplicidade: e-mail único por tenant.
+        Registra um novo Operador.
+        Trava de duplicidade: e-mail único globalmente.
+        Se não houver tenant_id vinculado (Módulo Público), forja uma nova Cidadela (Tenant).
         """
         existing = (
             self.db.query(User)
-            .filter(User.email == user_in.email, User.tenant_id == self.tenant_id)
+            .filter(User.email == user_in.email)
             .first()
         )
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"E-mail '{user_in.email}' já está registrado neste Tenant."
+                detail=f"E-mail '{user_in.email}' já possui registro na Matrix."
             )
+
+        final_tenant_id = self.tenant_id or uuid.uuid4()
 
         new_user = User(
             full_name=user_in.full_name,
             email=user_in.email,
             hashed_password=get_password_hash(user_in.password),
             role=user_in.role,
-            tenant_id=self.tenant_id,
+            tenant_id=final_tenant_id,
         )
         self.db.add(new_user)
         self.db.commit()
@@ -47,12 +50,12 @@ class AuthService:
 
     def authenticate_user(self, email: str, password: str) -> User:
         """
-        Valida credenciais. Retorna o User ou levanta 401.
+        Valida credenciais de forma global no ecosistema.
         Nunca revela se foi o e-mail ou a senha que falhou (segurança por design).
         """
         user = (
             self.db.query(User)
-            .filter(User.email == email, User.tenant_id == self.tenant_id)
+            .filter(User.email == email)
             .first()
         )
         if not user or not verify_password(password, user.hashed_password):
