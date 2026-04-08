@@ -22,9 +22,8 @@ class OrderService:
         current_year = datetime.now(timezone.utc).year
         year_suffix = str(current_year)[-2:]
 
-        # Busca a última OS criada neste ano
+        # Busca a última OS global criada neste ano para manter a unicidade do Protocolo
         last_order = self.db.query(ServiceOrder).filter(
-            ServiceOrder.tenant_id == self.tenant_id,
             extract('year', ServiceOrder.created_at) == current_year
         ).order_by(ServiceOrder.created_at.desc()).first()
 
