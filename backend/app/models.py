@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Enum as SqlEnum, ForeignKey, Numeric, Text
+from sqlalchemy import String, DateTime, Enum as SqlEnum, ForeignKey, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 
@@ -104,30 +104,34 @@ class OrderEvent(BaseModel):
 
 class OrderPart(BaseModel):
     """
-    [CENTRAL DE CUSTOS] Insumos e Peças vinculadas à OS.
-    Permite o cálculo de Lucro Líquido Real.
-    Integrado ao [ARSENAL DE ELITE]: pode estar vinculado a um Produto.
+    [CENTRAL DE CUSTOS E RESERVA] Insumos e Peças vinculadas à OS.
+    - Congelamento de preços para blindagem de faturamento (Snapshot).
+    - Subtração lógica via Tese C (Matriz Híbrida Militar).
     """
     __tablename__ = 'order_parts'
 
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('service_orders.id', ondelete='CASCADE'), nullable=False, index=True)
     product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('products.id', ondelete='RESTRICT'), nullable=True, index=True)
-    description: Mapped[str] = mapped_column(String(255), nullable=False)
-    cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    
+    quantity: Mapped[int] = mapped_column(default=1, nullable=False)
+    snapshot_cost_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    snapshot_selling_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
 
 
 class Product(BaseModel):
     """
-    [ARSENAL DE ELITE] Gestão de Estoque e Inventário.
-    - Sincronia total com a Tesouraria.
-    - Alertas de reposição baseados em min_stock.
+    [ARSENAL DE ELITE] Gestão de Estoque e Inventário (TESE C - Reserva Lógica).
     """
     __tablename__ = 'products'
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'sku', name='uq_product_tenant_sku'),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    sku: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
-    category: Mapped[str] = mapped_column(String(100), nullable=False)
-    unit_cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
-    quantity: Mapped[int] = mapped_column(default=0, nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    cost_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    selling_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    current_stock: Mapped[int] = mapped_column(default=0, nullable=False)
+    reserved_stock: Mapped[int] = mapped_column(default=0, nullable=False)
     min_stock: Mapped[int] = mapped_column(default=0, nullable=False)
 
