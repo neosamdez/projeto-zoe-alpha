@@ -1,7 +1,11 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
+from decimal import Decimal
 from pydantic import BaseModel, Field, EmailStr
+
+from .product import ProductCreate, ProductUpdate, ProductResponse
+from .order_part import OrderPartCreate, OrderPartResponse
 
 class LeadCreate(BaseModel):
     """
@@ -71,8 +75,8 @@ class ServiceOrderResponse(BaseModel):
     status: str
     device_info: str
     technical_notes: Optional[str] = None
-    total_value: float
-    parts_cost: float = 0.00
+    total_value: Decimal
+    parts_cost: Decimal = Decimal("0.00")
     technician_id: Optional[uuid.UUID] = None
     technician: Optional["TechnicianResponse"] = None
     created_at: datetime
@@ -117,23 +121,7 @@ class OrderEventResponse(BaseModel):
 
 
 # ── ORDER PARTS (Sprint 21: A Central de Custos) ───────────────────────────
-
-class OrderPartCreate(BaseModel):
-    description: str = Field(..., max_length=255)
-    cost: float = Field(..., gt=0)
-    product_id: Optional[uuid.UUID] = None
-
-class OrderPartResponse(BaseModel):
-    id: uuid.UUID
-    order_id: uuid.UUID
-    product_id: Optional[uuid.UUID] = None
-    description: str
-    cost: float
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
+# Tipos transferidos para app/schemas/order_part.py
 
 # ── ANALYTICS (Sprint 20: O Reator Arc) ──────────────────────────────────────
 
@@ -164,22 +152,22 @@ class OrdersStats(BaseModel):
     completed: int = Field(..., description="OS com status COMPLETED")
 
     # ── Tesouraria (Sprint 16) ────────────────────────────────────────────────
-    projected_revenue: float = Field(
-        default=0.0,
+    projected_revenue: Decimal = Field(
+        default=Decimal("0.0"),
         description="Receita Projetada: SUM(total_value) onde status IN (OPEN, IN_REPAIR, DIAGNOSING, AWAITING_APPROVAL, APPROVED)"
     )
-    realized_revenue: float = Field(
-        default=0.0,
+    realized_revenue: Decimal = Field(
+        default=Decimal("0.0"),
         description="Caixa Realizado: SUM(total_value) onde status IN (COMPLETED, DELIVERED)"
     )
 
     # ── CENTRAL DE CUSTOS (Sprint 21) ──────────────────────────────────────────
-    total_parts_cost: float = Field(
-        default=0.0,
+    total_parts_cost: Decimal = Field(
+        default=Decimal("0.0"),
         description="Custo Total: SUM(parts_cost) de todas as OS não deletadas."
     )
-    realized_net_profit: float = Field(
-        default=0.0,
+    realized_net_profit: Decimal = Field(
+        default=Decimal("0.0"),
         description="Lucro Líquido Realizado: (SUM(total_value) - SUM(parts_cost)) de OS Concluídas"
     )
     technician_ranking: List["TechnicianProfit"] = []
@@ -187,7 +175,7 @@ class OrdersStats(BaseModel):
 class TechnicianProfit(BaseModel):
     technician_id: uuid.UUID
     name: str
-    profit: float
+    profit: Decimal
 
 
 
@@ -246,33 +234,7 @@ class TokenData(BaseModel):
 
 
 # ── INVENTORY (Sprint 22: O Arsenal de Elite) ───────────────────────────
-
-class ProductBase(BaseModel):
-    name: str = Field(..., max_length=255)
-    sku: str = Field(..., max_length=100)
-    category: str = Field(..., max_length=100)
-    unit_cost: float = Field(..., gt=0)
-    quantity: int = Field(default=0, ge=0)
-    min_stock: int = Field(default=0, ge=0)
-
-class ProductCreate(ProductBase):
-    pass
-
-class ProductUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=255)
-    sku: Optional[str] = Field(None, max_length=100)
-    category: Optional[str] = Field(None, max_length=100)
-    unit_cost: Optional[float] = Field(None, gt=0)
-    quantity: Optional[int] = Field(None, ge=0)
-    min_stock: Optional[int] = Field(None, ge=0)
-
-class ProductResponse(ProductBase):
-    id: uuid.UUID
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
+# Tipos transferidos para app/schemas/product.py
 
 # ── TECHNICIANS (Sprint 23: Gestão de Mestres) ───────────────────────────
 

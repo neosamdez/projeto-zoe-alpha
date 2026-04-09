@@ -4,7 +4,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import extract, func, desc, case
 from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product, Technician
-from app.schemas import ServiceOrderCreate, OrderPartCreate, OrdersStats, TechnicianProfit
+from app.schemas import ServiceOrderCreate, OrdersStats, TechnicianProfit
+from app.schemas.order_part import OrderPartCreate
+from decimal import Decimal
 
 class OrderService:
     """
@@ -153,8 +155,8 @@ class OrderService:
                 "status": order.status.value,
                 "device_info": order.device_info,
                 "technical_notes": order.technical_notes,
-                "total_value": float(order.total_value or 0),
-                "parts_cost": float(order.parts_cost or 0),
+                "total_value": order.total_value or Decimal("0.00"),
+                "parts_cost": order.parts_cost or Decimal("0.00"),
                 "technician_id": order.technician_id,
                 "technician": {"id": order.technician_id, "name": tech_name} if order.technician_id else None,
                 "created_at": order.created_at,
@@ -323,12 +325,12 @@ class OrderService:
             open=int(counts.open or 0) if counts else 0,
             repairing=int(counts.repairing or 0) if counts else 0,
             completed=int(counts.completed or 0) if counts else 0,
-            projected_revenue=float(monetary.projected or 0.0) if monetary else 0.0,
-            realized_revenue=float(monetary.realized or 0.0) if monetary else 0.0,
-            total_parts_cost=float(monetary.total_parts_cost or 0.0) if monetary else 0.0,
-            realized_net_profit=float(monetary.net_profit or 0.0) if monetary else 0.0,
+            projected_revenue=monetary.projected or Decimal("0.0"),
+            realized_revenue=monetary.realized or Decimal("0.0"),
+            total_parts_cost=monetary.total_parts_cost or Decimal("0.0"),
+            realized_net_profit=monetary.net_profit or Decimal("0.0"),
             technician_ranking=[
-                TechnicianProfit(technician_id=r.technician_id, name=r.name, profit=float(r.profit or 0))
+                TechnicianProfit(technician_id=r.technician_id, name=r.name, profit=r.profit or Decimal("0.0"))
                 for r in ranking_query
             ]
         )
@@ -369,8 +371,9 @@ class OrderService:
 
     def add_order_part(self, order_id: uuid.UUID, part_in: OrderPartCreate) -> OrderPart:
         """
-        Adiciona um insumo à OS e atualiza o custo total de peças.
-        SPRINT 22: Baixa automática do Arsenal se vinculado a um Produto.
+        [Tese C] Adiciona um insumo à OS com vínculo estrito obrigatório.
+        O custo total de peças na OS será atualizado usando o snapshot de custo.
+        A quantidade é reservada logicamente.
         """
         order = self.db.query(ServiceOrder).filter(
             ServiceOrder.id == order_id,
@@ -380,37 +383,36 @@ class OrderService:
         if not order:
             raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
 
-        # ── [CONTROLE DE ARSENAL] ──
-        if part_in.product_id:
-            product = self.db.query(Product).filter(
-                Product.id == part_in.product_id,
-                Product.tenant_id == self.tenant_id,
-                Product.deleted_at.is_(None)
-            ).first()
+        product = self.db.query(Product).filter(
+            Product.id == part_in.product_id,
+            Product.tenant_id == self.tenant_id,
+            Product.deleted_at.is_(None)
+        ).first()
 
-            if not product:
-                raise HTTPException(status_code=404, detail="Produto não registrado no Arsenal.")
+        if not product:
+            raise HTTPException(status_code=404, detail="Produto não registrado no Arsenal.")
             
-            if product.quantity <= 0:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Estoque Insuficiente: {product.name} esgotado no arsenal."
-                )
+        if product.current_stock - product.reserved_stock < part_in.quantity:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Estoque Insuficiente: {product.name} não possui estoque livre suficiente no arsenal."
+            )
 
-            # Baixa automática no Inventário
-            product.quantity -= 1
+        # Incrementa o estoque reservado logicamente (Tese C)
+        product.reserved_stock += part_in.quantity
 
         db_part = OrderPart(
             tenant_id=self.tenant_id,
             order_id=order_id,
             product_id=part_in.product_id,
-            description=part_in.description,
-            cost=part_in.cost
+            quantity=part_in.quantity,
+            snapshot_cost_price=product.cost_price,
+            snapshot_selling_price=product.selling_price
         )
         self.db.add(db_part)
         
         # Atualiza custo acumulado na OS (Cache tático)
-        order.parts_cost = float(order.parts_cost or 0) + float(part_in.cost)
+        order.parts_cost = (order.parts_cost or Decimal("0.00")) + (product.cost_price * part_in.quantity)
         
         self.db.commit()
         self.db.refresh(db_part)
@@ -418,8 +420,7 @@ class OrderService:
 
     def remove_order_part(self, part_id: uuid.UUID):
         """
-        Remove um insumo e abate o valor do custo total da OS.
-        SPRINT 22: Estorna a quantidade para o Arsenal se houver vínculo com Produto.
+        Remove um insumo e estorna logicamente o estoque reservado para o Arsenal.
         """
         part = self.db.query(OrderPart).filter(
             OrderPart.id == part_id,
@@ -430,20 +431,22 @@ class OrderService:
             raise HTTPException(status_code=404, detail="Insumo não encontrado.")
 
         # ── [ESTORNO LOGÍSTICO] ──
-        if part.product_id:
-            product = self.db.query(Product).filter(
-                Product.id == part.product_id,
-                Product.tenant_id == self.tenant_id
-            ).first()
-            if product:
-                product.quantity += 1
+        product = self.db.query(Product).filter(
+            Product.id == part.product_id,
+            Product.tenant_id == self.tenant_id
+        ).first()
+        
+        if product:
+            product.reserved_stock -= part.quantity
+            if product.reserved_stock < 0:
+                product.reserved_stock = 0
 
         order = self.db.query(ServiceOrder).filter(
             ServiceOrder.id == part.order_id
         ).first()
 
         if order:
-            order.parts_cost = float(order.parts_cost or 0) - float(part.cost)
+            order.parts_cost = (order.parts_cost or Decimal("0.00")) - (part.snapshot_cost_price * part.quantity)
 
         self.db.delete(part)
         self.db.commit()

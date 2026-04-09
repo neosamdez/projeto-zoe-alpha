@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import String, DateTime, Enum as SqlEnum, ForeignKey, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
+from decimal import Decimal
 
 Base = declarative_base()
 
@@ -84,8 +85,8 @@ class ServiceOrder(BaseModel):
     status: Mapped[ServiceStatus] = mapped_column(SqlEnum(ServiceStatus, native_enum=False), default=ServiceStatus.OPEN, nullable=False)
     device_info: Mapped[str] = mapped_column(Text, nullable=False)
     technical_notes: Mapped[str | None] = mapped_column(Text)
-    total_value: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
-    parts_cost: Mapped[float] = mapped_column(Numeric(10, 2), default=0.00)
+    total_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+    parts_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
 
 
 class OrderEvent(BaseModel):
@@ -114,8 +115,8 @@ class OrderPart(BaseModel):
     product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('products.id', ondelete='RESTRICT'), nullable=True, index=True)
     
     quantity: Mapped[int] = mapped_column(default=1, nullable=False)
-    snapshot_cost_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
-    snapshot_selling_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    snapshot_cost_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    snapshot_selling_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
 
 
 class Product(BaseModel):
@@ -129,8 +130,8 @@ class Product(BaseModel):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     sku: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    cost_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
-    selling_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    cost_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
+    selling_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
     current_stock: Mapped[int] = mapped_column(default=0, nullable=False)
     reserved_stock: Mapped[int] = mapped_column(default=0, nullable=False)
     min_stock: Mapped[int] = mapped_column(default=0, nullable=False)
