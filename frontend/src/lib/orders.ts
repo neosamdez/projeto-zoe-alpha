@@ -69,6 +69,34 @@ export async function updateOrderValue(
   }, isServer);
 }
 
+export async function updateOrder(
+  orderId: string,
+  data: { device_info?: string; technical_notes?: string },
+  isServer = false
+): Promise<ServiceOrder> {
+  return apiFetch<ServiceOrder>(`/orders/${orderId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  }, isServer);
+}
+
+export async function addOrderNote(
+  orderId: string,
+  content: string,
+  isServer = false
+): Promise<OrderEvent> {
+  return apiFetch<OrderEvent>(`/orders/${orderId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  }, isServer);
+}
+
+export async function deleteOrder(orderId: string, isServer = false): Promise<any> {
+  return apiFetch<any>(`/orders/${orderId}`, {
+    method: "DELETE",
+  }, isServer);
+}
+
 export async function getOrderEvents(orderId: string, isServer = false): Promise<OrderEvent[]> {
   return apiFetch<OrderEvent[]>(`/orders/${orderId}/events`, {}, isServer);
 }

@@ -19,10 +19,10 @@ class ReportService:
         self.tenant_id = tenant_id
 
     def get_monthly_data(self, month: int, year: int) -> dict:
-        """Coleta as informações consolidadas de fechamento (Apenas COMPLETED)."""
+        """Coleta as informações consolidadas de fechamento (COMPLETED + DELIVERED)."""
         orders = self.db.query(ServiceOrder).filter(
             ServiceOrder.tenant_id == self.tenant_id,
-            ServiceOrder.status == ServiceStatus.COMPLETED,
+            ServiceOrder.status.in_([ServiceStatus.COMPLETED, ServiceStatus.DELIVERED]),
             ServiceOrder.deleted_at.is_(None),
             extract('month', ServiceOrder.created_at) == month,
             extract('year', ServiceOrder.created_at) == year

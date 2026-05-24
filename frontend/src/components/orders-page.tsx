@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getOrders, updateOrderStatus, getOrderEvents, getOrderParts, addOrderPart, removeOrderPart, assignTechnician, updateOrderValue, getOrdersStats, getOrdersAnalytics } from "@/lib/orders";
+import { getOrders, updateOrderStatus, getOrderEvents, getOrderParts, addOrderPart, removeOrderPart, assignTechnician, updateOrderValue, updateOrder, addOrderNote, deleteOrder, getOrdersStats, getOrdersAnalytics } from "@/lib/orders";
 import { getTechnicians } from "@/lib/technicians";
 import { getProducts } from "@/lib/products";
+import { useAuth } from "@/contexts/auth-context";
 import type { ServiceOrder, ServiceStatus, OrderEvent, OrderPart, Technician, Product } from "@/types";
 import { StatusBadge } from "@/components/status-badge";
 import { Combobox, type ComboboxItem } from "@/components/combobox";
@@ -33,6 +34,8 @@ const EVENT_COLORS: Record<string, string> = {
   TECH_ASSIGNED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   NOTE_ADDED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
   VALUE_UPDATED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  ORDER_UPDATED: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  ORDER_DELETED: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -41,9 +44,12 @@ const EVENT_LABELS: Record<string, string> = {
   TECH_ASSIGNED: "Técnico",
   NOTE_ADDED: "Nota",
   VALUE_UPDATED: "Valor",
+  ORDER_UPDATED: "Edição",
+  ORDER_DELETED: "Remoção",
 };
 
 export function OrdersPage() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -65,6 +71,14 @@ export function OrdersPage() {
 
   const [editValue, setEditValue] = useState("");
   const [savingValue, setSavingValue] = useState(false);
+
+  const [noteContent, setNoteContent] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+
+  const [editDeviceInfo, setEditDeviceInfo] = useState("");
+  const [editTechNotes, setEditTechNotes] = useState("");
+  const [editingFields, setEditingFields] = useState(false);
+  const [savingFields, setSavingFields] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -112,6 +126,10 @@ export function OrdersPage() {
     setAddPartProductId("");
     setAddPartQty(1);
     setEditValue("");
+    setNoteContent("");
+    setEditDeviceInfo("");
+    setEditTechNotes("");
+    setEditingFields(false);
     fetchDetailData(order.id);
     fetchSupportData();
   };
@@ -207,6 +225,56 @@ export function OrdersPage() {
       toast.error(err.message || "Erro ao atualizar valor");
     } finally {
       setSavingValue(false);
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!detailOrder || !noteContent.trim()) return;
+    setAddingNote(true);
+    try {
+      await addOrderNote(detailOrder.id, noteContent.trim());
+      toast.success("Nota adicionada");
+      fetchDetailData(detailOrder.id);
+      setNoteContent("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao adicionar nota");
+    } finally {
+      setAddingNote(false);
+    }
+  };
+
+  const handleSaveFields = async () => {
+    if (!detailOrder) return;
+    setSavingFields(true);
+    try {
+      const data: { device_info?: string; technical_notes?: string } = {};
+      if (editDeviceInfo) data.device_info = editDeviceInfo;
+      if (editTechNotes !== undefined) data.technical_notes = editTechNotes;
+      const updated = await updateOrder(detailOrder.id, data);
+      setDetailOrder(updated);
+      toast.success("Dados da OS atualizados");
+      fetchOrders();
+      fetchDetailData(detailOrder.id);
+      setEditingFields(false);
+      setEditDeviceInfo("");
+      setEditTechNotes("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar OS");
+    } finally {
+      setSavingFields(false);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!detailOrder) return;
+    if (!confirm(`Remover OS ${detailOrder.protocol}? Estoque reservado será estornado.`)) return;
+    try {
+      await deleteOrder(detailOrder.id);
+      toast.success("OS removida com sucesso");
+      setDetailOrder(null);
+      fetchOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao remover OS");
     }
   };
 
@@ -336,10 +404,14 @@ export function OrdersPage() {
                     <p className="text-zinc-500">Status</p>
                     <StatusBadge status={detailOrder.status} />
                   </div>
-                  <div>
-                    <p className="text-zinc-500">Dispositivo</p>
+                <div>
+                  <p className="text-zinc-500">Dispositivo</p>
+                  {editingFields ? (
+                    <Input value={editDeviceInfo} onChange={(e) => setEditDeviceInfo(e.target.value)} className="bg-zinc-800 border-zinc-700 text-white text-sm h-8 mt-1" />
+                  ) : (
                     <p className="text-white">{detailOrder.device_info}</p>
-                  </div>
+                  )}
+                </div>
                   <div>
                     <p className="text-zinc-500">Técnico</p>
                     {detailOrder.technician ? (
@@ -399,35 +471,81 @@ export function OrdersPage() {
                     <p className="text-white">R$ {Number(detailOrder.parts_cost).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
                   </div>
                 </div>
-                {detailOrder.technical_notes && (
-                  <div>
-                    <p className="text-zinc-500 text-sm">Notas Técnicas</p>
+                {detailOrder.technical_notes && !editingFields && (
+                  <div className="col-span-2">
+                    <p className="text-zinc-500">Notas Técnicas</p>
                     <p className="text-zinc-300 text-sm">{detailOrder.technical_notes}</p>
                   </div>
                 )}
-                {STATUS_FLOW[detailOrder.status]?.length > 0 && (
-                  <div>
-                    <p className="text-zinc-500 text-sm mb-2">Avançar Status</p>
-                    <div className="flex gap-2">
-                      {STATUS_FLOW[detailOrder.status].map((nextStatus) => (
-                        <Button
-                          key={nextStatus}
-                          variant="outline"
-                          size="sm"
-                          className="border-zinc-700 text-white hover:bg-amber-500 hover:text-black"
-                          onClick={() => handleStatusUpdate(detailOrder.id, nextStatus)}
-                        >
-                          <ArrowRight className="h-3 w-3 mr-1" />
-                          {nextStatus}
-                        </Button>
-                      ))}
-                    </div>
+                {editingFields && (
+                  <div className="col-span-2">
+                    <p className="text-zinc-500">Notas Técnicas</p>
+                    <Input value={editTechNotes} onChange={(e) => setEditTechNotes(e.target.value)} className="bg-zinc-800 border-zinc-700 text-white text-sm h-8 mt-1" placeholder="Observações técnicas..." />
                   </div>
                 )}
+                {editingFields ? (
+                  <div className="col-span-2 flex gap-2">
+                    <Button size="sm" onClick={handleSaveFields} disabled={savingFields} className="bg-amber-500 hover:bg-amber-600 text-black h-7 px-3 text-xs">
+                      {savingFields ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar Dados"}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingFields(false)} className="text-zinc-400 hover:text-white h-7 px-3 text-xs">
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="col-span-2">
+                    <Button variant="ghost" size="sm" onClick={() => { setEditDeviceInfo(detailOrder.device_info); setEditTechNotes(detailOrder.technical_notes || ""); setEditingFields(true); }} className="text-amber-400 hover:text-amber-300 h-7 px-2 text-xs">
+                      Editar Dados
+                    </Button>
+                  </div>
+                )}
+              {STATUS_FLOW[detailOrder.status]?.length > 0 && (
+                <div>
+                  <p className="text-zinc-500 text-sm mb-2">Avançar Status</p>
+                  <div className="flex gap-2">
+                    {STATUS_FLOW[detailOrder.status].map((nextStatus) => (
+                      <Button
+                        key={nextStatus}
+                        variant="outline"
+                        size="sm"
+                        className="border-zinc-700 text-white hover:bg-amber-500 hover:text-black"
+                        onClick={() => handleStatusUpdate(detailOrder.id, nextStatus)}
+                      >
+                        <ArrowRight className="h-3 w-3 mr-1" />
+                        {nextStatus}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {user?.role === "ADMIN" && (
+                <div className="border-t border-zinc-800 pt-4">
+                  <Button variant="ghost" size="sm" onClick={handleDeleteOrder} className="text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                    <Trash2 className="h-3 w-3 mr-1" /> Excluir OS
+                  </Button>
+                </div>
+              )}
               </TabsContent>
 
-              <TabsContent value="timeline" className="mt-4">
-                {events.length === 0 ? (
+          <TabsContent value="timeline" className="mt-4 space-y-4">
+              <div className="border border-zinc-800 rounded-lg p-3 bg-zinc-950 space-y-3">
+                <p className="text-sm text-zinc-400 font-medium flex items-center gap-1">
+                  <Plus className="h-3 w-3" /> Adicionar Nota Técnica
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    placeholder="Observação técnica..."
+                    className="bg-zinc-800 border-zinc-700 text-white h-8 text-sm flex-1"
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddNote(); } }}
+                  />
+                  <Button size="sm" onClick={handleAddNote} disabled={!noteContent.trim() || addingNote} className="bg-amber-500 hover:bg-amber-600 text-black h-8">
+                    {addingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : "Enviar"}
+                  </Button>
+                </div>
+              </div>
+              {events.length === 0 ? (
                   <p className="text-zinc-500 text-center py-8">Nenhum evento registrado</p>
                 ) : (
                   <div className="space-y-3">

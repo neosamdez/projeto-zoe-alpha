@@ -15,7 +15,9 @@ from app.schemas import (
     ServiceOrderResponse,
     ServiceOrderStatusUpdate,
     ServiceOrderValueUpdate,
+    ServiceOrderUpdate,
     OrderAssignTechnician,
+    OrderNoteCreate,
     OrdersStats,
     OrderEventResponse,
     OrderAnalyticsResponse,
@@ -23,7 +25,7 @@ from app.schemas import (
     OrderPartResponse
 )
 from app.database import get_db
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_admin
 from app.services.order_service import OrderService
 from app.models import User
 
@@ -175,6 +177,54 @@ def update_order_value(
 ):
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
     return service.update_order_value(order_id=order_id, total_value=value_in.total_value)
+
+
+@router.patch(
+    "/{order_id}",
+    response_model=ServiceOrderResponse,
+    summary="Atualizar Dados da OS",
+    description="Atualiza device_info e/ou technical_notes. Valor do serviço usa endpoint dedicado."
+)
+def update_order(
+    order_id: uuid.UUID,
+    update_in: ServiceOrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.update_order(order_id=order_id, update_in=update_in)
+
+
+@router.post(
+    "/{order_id}/notes",
+    response_model=OrderEventResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adicionar Nota Técnica",
+    description="Registra uma observação técnica na timeline da OS."
+)
+def add_order_note(
+    order_id: uuid.UUID,
+    note_in: OrderNoteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.add_order_note(order_id=order_id, note_in=note_in)
+
+
+@router.delete(
+    "/{order_id}",
+    summary="Remover OS (Soft Delete)",
+    description="Remove uma OS e estorna estoque reservado. Acesso ADMIN."
+)
+def delete_order(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    service.delete_order(order_id)
+    return {"message": "Ordem de Serviço removida com sucesso."}
 
 
 @router.get(

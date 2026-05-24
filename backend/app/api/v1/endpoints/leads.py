@@ -5,7 +5,7 @@ import uuid
 
 from app.schemas import LeadCreate, LeadResponse, LeadUpdate, LeadListItem, LeadDetails
 from app.database import get_db
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_admin
 from app.services.lead_service import LeadService
 from app.models import User
 
@@ -97,3 +97,18 @@ def update_lead(
         message="Dados do Cliente Atualizados.",
         created_at=updated.created_at
     )
+
+
+@router.delete(
+    "/{lead_id}",
+    summary="Remover Cliente (Soft Delete)",
+    description="Remove um cliente da base. Bloqueado se houver OS vinculada. Acesso ADMIN."
+)
+def delete_lead(
+    lead_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    service = LeadService(db=db, tenant_id=current_user.tenant_id)
+    service.delete_lead(lead_id)
+    return {"message": "Cliente removido da base tática com sucesso."}

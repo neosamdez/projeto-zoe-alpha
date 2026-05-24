@@ -6,6 +6,7 @@ from sqlalchemy import extract, func, desc, case
 from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product, Technician
 from app.schemas import ServiceOrderCreate, OrdersStats, TechnicianProfit
 from app.schemas.order_part import OrderPartCreate
+from app.schemas import OrderNoteCreate, ServiceOrderUpdate
 from decimal import Decimal
 
 class OrderService:
@@ -492,4 +493,92 @@ class OrderService:
             OrderPart.order_id == order_id,
             OrderPart.tenant_id == self.tenant_id
         ).all()
+
+    def add_order_note(self, order_id: uuid.UUID, note_in: OrderNoteCreate) -> OrderEvent:
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=order_id,
+            event_type="NOTE_ADDED",
+            description=note_in.content
+        )
+        self.db.add(event)
+        self.db.commit()
+        self.db.refresh(event)
+        return event
+
+    def update_order(self, order_id: uuid.UUID, update_in: ServiceOrderUpdate) -> ServiceOrder:
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        update_data = update_in.model_dump(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="Nenhum campo fornecido para atualização.")
+
+        changes = []
+        for key, value in update_data.items():
+            old_value = getattr(order, key)
+            if old_value != value:
+                setattr(order, key, value)
+                changes.append(f"{key}: '{old_value}' → '{value}'")
+
+        if changes:
+            event = OrderEvent(
+                tenant_id=self.tenant_id,
+                order_id=order.id,
+                event_type="ORDER_UPDATED",
+                description="Campos atualizados: " + "; ".join(changes)
+            )
+            self.db.add(event)
+
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def delete_order(self, order_id: uuid.UUID) -> None:
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id,
+            ServiceOrder.deleted_at.is_(None)
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        parts = self.db.query(OrderPart).filter(
+            OrderPart.order_id == order_id,
+            OrderPart.tenant_id == self.tenant_id
+        ).all()
+
+        for part in parts:
+            product = self.db.query(Product).filter(
+                Product.id == part.product_id,
+                Product.tenant_id == self.tenant_id
+            ).first()
+            if product:
+                product.reserved_stock = max(0, product.reserved_stock - part.quantity)
+
+        order.deleted_at = datetime.now(timezone.utc)
+
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=order_id,
+            event_type="ORDER_DELETED",
+            description=f"Ordem de Serviço {order.protocol} removida (soft delete). Estorno de {len(parts)} insumo(s)."
+        )
+        self.db.add(event)
+
+        self.db.commit()
 

@@ -12,6 +12,8 @@ export interface Lead {
   name: string;
   email: string;
   phone: string;
+  device_interest?: string;
+  notes?: string;
   created_at: string;
   total_os: number;
 }

@@ -142,8 +142,10 @@ export function ProductsPage() {
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <Package className="h-5 w-5 text-amber-500" />
-            {products.length} item(ns)
+      <Package className="h-5 w-5 text-amber-500" />
+      {products.length} item(ns){products.filter(p => p.current_stock <= p.min_stock).length > 0 && (
+        <span className="text-red-400 text-sm font-normal ml-1">— {products.filter(p => p.current_stock <= p.min_stock).length} estoque baixo</span>
+      )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -166,7 +168,12 @@ export function ProductsPage() {
                   <TableCell className="text-amber-500 font-mono">{product.sku}</TableCell>
                   <TableCell className="text-zinc-300">R$ {Number(product.cost_price).toFixed(2)}</TableCell>
                   <TableCell className="text-zinc-300">R$ {Number(product.selling_price).toFixed(2)}</TableCell>
-                  <TableCell className="text-white">{product.current_stock}</TableCell>
+                  <TableCell className="text-white">
+                  {product.current_stock}
+                  {product.current_stock <= product.min_stock && (
+                    <span className="ml-2 bg-red-500/20 text-red-400 text-xs px-1.5 py-0.5 rounded">Baixo</span>
+                  )}
+                </TableCell>
                   <TableCell className="text-orange-400">{product.reserved_stock}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">

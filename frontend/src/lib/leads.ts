@@ -26,3 +26,9 @@ export async function updateLead(leadId: string, data: LeadUpdate, isServer = fa
     body: JSON.stringify(data),
   }, isServer);
 }
+
+export async function deleteLead(leadId: string, isServer = false): Promise<any> {
+  return apiFetch<any>(`/leads/${leadId}`, {
+    method: "DELETE",
+  }, isServer);
+}

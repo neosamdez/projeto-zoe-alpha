@@ -115,6 +115,15 @@ class ServiceOrderValueUpdate(BaseModel):
     total_value: Decimal = Field(..., ge=0, description="Valor do serviço cobrado do cliente")
 
 
+class OrderNoteCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000, description="Conteúdo da nota técnica")
+
+
+class ServiceOrderUpdate(BaseModel):
+    device_info: Optional[str] = Field(None, max_length=150, description="Descrição do dispositivo")
+    technical_notes: Optional[str] = Field(None, description="Notas técnicas")
+
+
 class OrderEventResponse(BaseModel):
     """
     [RESPONSE CONTRACT] Detalhes de um log de auditoria.

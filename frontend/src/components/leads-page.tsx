@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getLeads, createLead, updateLead } from "@/lib/leads";
+import { getLeads, createLead, updateLead, deleteLead } from "@/lib/leads";
 import { createOrderFromLead } from "@/lib/orders";
 import type { Lead, LeadCreate, LeadUpdate } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserPlus, Search, Pencil, Users, Phone, Mail, ClipboardPlus } from "lucide-react";
+import { UserPlus, Search, Pencil, Trash2, Users, Phone, Mail, ClipboardPlus } from "lucide-react";
 import { toast } from "sonner";
 
 export function LeadsPage() {
@@ -99,6 +99,21 @@ export function LeadsPage() {
     }
   };
 
+  const handleDelete = async (lead: Lead) => {
+    if (lead.total_os > 0) {
+      toast.error("Este cliente possui OS vinculada(s). Remova as OS primeiro.");
+      return;
+    }
+    if (!confirm(`Remover ${lead.name} da base de clientes?`)) return;
+    try {
+      await deleteLead(lead.id);
+      toast.success("Cliente removido");
+      fetchLeads();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao remover cliente");
+    }
+  };
+
   const filtered = leads.filter(
     (l) =>
       l.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -178,43 +193,56 @@ export function LeadsPage() {
               <TableHead className="text-zinc-400">Cadastro</TableHead>
               <TableHead className="text-zinc-400"></TableHead>
               <TableHead className="text-zinc-400"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((lead) => (
-                <TableRow key={lead.id} className="border-zinc-800">
-                  <TableCell className="text-white font-medium">{lead.name}</TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1 text-zinc-400"><Mail className="h-3 w-3" />{lead.email}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="flex items-center gap-1 text-zinc-400"><Phone className="h-3 w-3" />{lead.phone}</span>
-                  </TableCell>
-                  <TableCell className="text-amber-500 font-semibold">{lead.total_os}</TableCell>
-              <TableCell className="text-zinc-500">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</TableCell>
-              <TableCell>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(lead)} className="text-zinc-400 hover:text-white">
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </TableCell>
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openCreateOS(lead)}
-                  disabled={lead.total_os > 0}
-                  className={lead.total_os > 0 ? "text-zinc-600" : "text-amber-500 hover:text-amber-400"}
-                  title={lead.total_os > 0 ? "Este lead já possui OS" : "Criar Ordem de Serviço"}
-                >
-                  <ClipboardPlus className="h-4 w-4" />
-                </Button>
-              </TableCell>
+              <TableHead className="text-zinc-400"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((lead) => (
+              <TableRow key={lead.id} className="border-zinc-800">
+                <TableCell className="text-white font-medium">{lead.name}</TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1 text-zinc-400"><Mail className="h-3 w-3" />{lead.email}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="flex items-center gap-1 text-zinc-400"><Phone className="h-3 w-3" />{lead.phone}</span>
+                </TableCell>
+                <TableCell className="text-amber-500 font-semibold">{lead.total_os}</TableCell>
+                <TableCell className="text-zinc-500">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(lead)} className="text-zinc-400 hover:text-white">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openCreateOS(lead)}
+                    disabled={lead.total_os > 0}
+                    className={lead.total_os > 0 ? "text-zinc-600" : "text-amber-500 hover:text-amber-400"}
+                    title={lead.total_os > 0 ? "Este lead já possui OS" : "Criar Ordem de Serviço"}
+                  >
+                    <ClipboardPlus className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(lead)}
+                    disabled={lead.total_os > 0}
+                    className={lead.total_os > 0 ? "text-zinc-600" : "text-zinc-400 hover:text-red-400"}
+                    title={lead.total_os > 0 ? "Cliente com OS vinculada" : "Remover cliente"}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-zinc-500 py-8">Nenhum cliente encontrado</TableCell>
-                </TableRow>
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-zinc-500 py-8">Nenhum cliente encontrado</TableCell>
+              </TableRow>
               )}
             </TableBody>
           </Table>

@@ -1,7 +1,9 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from app.models import Lead, ServiceOrder
 from app.schemas import LeadCreate, LeadUpdate, LeadListItem, LeadDetails
 
@@ -112,3 +114,28 @@ class LeadService:
         self.db.commit()
         self.db.refresh(db_lead)
         return db_lead
+
+    def delete_lead(self, lead_id: uuid.UUID) -> None:
+        """Soft delete de Lead. Bloqueia se houver OS vinculada."""
+        lead = self.db.query(Lead).filter(
+            Lead.id == lead_id,
+            Lead.tenant_id == self.tenant_id,
+            Lead.deleted_at == None
+        ).first()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+        os_count = self.db.query(func.count(ServiceOrder.id)).filter(
+            ServiceOrder.lead_id == lead_id,
+            ServiceOrder.deleted_at == None
+        ).scalar()
+
+        if os_count and os_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Operação Inválida: Este cliente possui {os_count} OS vinculada(s). Remova as OS primeiro."
+            )
+
+        lead.deleted_at = datetime.now(timezone.utc)
+        self.db.commit()
