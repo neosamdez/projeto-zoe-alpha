@@ -9,7 +9,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.dependencies import get_tenant_id
+from app.api.dependencies import get_tenant_id, get_current_user
+from app.models import User
 from app.services.auth_service import AuthService
 from app.core.security import create_access_token
 from app.schemas import Token, UserCreate, UserResponse
@@ -45,6 +46,16 @@ def login(
     access_token = create_access_token(data=token_data)
 
     return Token(access_token=access_token, token_type="bearer")
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Perfil do Operador",
+    description="Retorna os dados do usuário autenticado via Bearer Token."
+)
+def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse.model_validate(current_user)
 
 
 @router.post(

@@ -34,12 +34,12 @@ class ReportService:
         # Coleta custos de peças de forma exata e blindada via DB para cada ordem finalizada
         for order in orders:
             total_revenue += float(order.total_value or 0.0)
-            
-            parts_cost = self.db.query(func.sum(OrderPart.cost)).filter(
-                OrderPart.order_id == order.id, 
+
+            parts_cost = self.db.query(func.sum(OrderPart.snapshot_cost_price * OrderPart.quantity)).filter(
+                OrderPart.order_id == order.id,
                 OrderPart.deleted_at.is_(None)
             ).scalar() or 0.0
-            
+
             total_costs += float(parts_cost)
             
         net_profit = total_revenue - total_costs
@@ -62,14 +62,13 @@ class ReportService:
         writer.writerow(["Protocolo", "Data Fechamento", "Status", "Receita OS (R$)", "Custos Peças (R$)", "Lucro (R$)"])
         
         for order in data["orders"]:
-            parts_cost = self.db.query(func.sum(OrderPart.cost)).filter(
-                OrderPart.order_id == order.id, 
+            parts_cost = self.db.query(func.sum(OrderPart.snapshot_cost_price * OrderPart.quantity)).filter(
+                OrderPart.order_id == order.id,
                 OrderPart.deleted_at.is_(None)
             ).scalar() or 0.0
-            
             profit = float(order.total_value or 0) - float(parts_cost)
             writer.writerow([
-                order.protocol, 
+                order.protocol,
                 order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 order.status.value,
                 f"{float(order.total_value or 0):.2f}",
@@ -128,13 +127,13 @@ class ReportService:
                 c.showPage()
                 y = height - 60
                 c.setFont("Helvetica", 10)
-                
-            parts_cost = self.db.query(func.sum(OrderPart.cost)).filter(
-                OrderPart.order_id == order.id, 
+
+            parts_cost = self.db.query(func.sum(OrderPart.snapshot_cost_price * OrderPart.quantity)).filter(
+                OrderPart.order_id == order.id,
                 OrderPart.deleted_at.is_(None)
             ).scalar() or 0.0
             profit = float(order.total_value or 0) - float(parts_cost)
-            
+
             c.drawString(50, y, str(order.protocol))
             c.drawString(160, y, order.created_at.strftime("%d/%m/%Y"))
             c.drawString(280, y, f"R$ {float(order.total_value or 0):.2f}")

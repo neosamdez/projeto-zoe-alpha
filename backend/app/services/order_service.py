@@ -117,9 +117,12 @@ class OrderService:
         # Base: JOIN com Lead e LEFT JOIN com Technician
         query = (
             self.db.query(
-                ServiceOrder, 
+                ServiceOrder,
                 Lead.name.label("lead_name"),
-                Technician.name.label("technician_name")
+                Technician.name.label("technician_name"),
+                Technician.specialization.label("technician_specialization"),
+                Technician.is_active.label("technician_is_active"),
+                Technician.created_at.label("technician_created_at"),
             )
             .join(Lead, ServiceOrder.lead_id == Lead.id)
             .outerjoin(Technician, ServiceOrder.technician_id == Technician.id)
@@ -146,7 +149,7 @@ class OrderService:
 
         # Constrói dicts explícitos: Pydantic lê diretamente sem magia de ORM
         result = []
-        for order, lead_name, tech_name in rows:
+        for order, lead_name, tech_name, tech_spec, tech_active, tech_created in rows:
             result.append({
                 "id": order.id,
                 "lead_id": order.lead_id,
@@ -158,7 +161,13 @@ class OrderService:
                 "total_value": order.total_value or Decimal("0.00"),
                 "parts_cost": order.parts_cost or Decimal("0.00"),
                 "technician_id": order.technician_id,
-                "technician": {"id": order.technician_id, "name": tech_name} if order.technician_id else None,
+                "technician": {
+                    "id": order.technician_id,
+                    "name": tech_name,
+                    "specialization": tech_spec,
+                    "is_active": tech_active,
+                    "created_at": tech_created,
+                } if order.technician_id else None,
                 "created_at": order.created_at,
             })
 

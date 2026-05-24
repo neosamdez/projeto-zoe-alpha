@@ -62,7 +62,7 @@ services:
     networks:
       - asi_network
 
-  # ── FRONTEND: The Vitruvian (Next.js 16 — Dev Mode) ────────────────────────
+# ── FRONTEND: The Vitruvian (Next.js 16 — Dev Mode) ────────────────────────
   frontend:
     build:
       context: ./frontend
@@ -72,30 +72,15 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Monta o código-fonte local para habilitar Hot-Reload
-      - ./frontend:/app
-      # Volume anônimo: isola o node_modules do container
-      # Evita que o diretório do host sobrescreva o do container
-      - /app/node_modules
+    - ./frontend:/app
+    - /app/node_modules
+    - /app/.next
     environment:
-      # ── ARQUITETURA DE REDE DUAL ──────────────────────────────────────────
-      #
-      # NEXT_PUBLIC_API_URL → variável exposta ao browser (client-side).
-      # O browser roda NA MÁQUINA DO USUÁRIO, fora do Docker.
-      # Logo, ele deve chamar localhost:8000 (porta mapeada pelo Docker).
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
-      #
-      # INTERNAL_API_URL → variável usada pelo Next.js Server Components/SSR.
-      # O servidor Next.js roda DENTRO do Docker, na rede asi_network.
-      # Logo, ele deve chamar pelo nome do serviço: "api" (DNS interno Docker).
-      # Use esta variável em getAuthHeaders() e chamadas server-side.
       INTERNAL_API_URL: http://api:8000/api/v1
-      #
-      # Ativa modo escuro por padrão (estética Stark Night)
       NODE_ENV: development
-      #
-      # Polling de arquivos para Hot-Reload dentro do container
       WATCHPACK_POLLING: "true"
+    command: sh -c "npm install && npm run dev"
     depends_on:
       - api
     networks:
