@@ -11,9 +11,11 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.schemas import (
-    ServiceOrderCreate, 
-    ServiceOrderResponse, 
-    ServiceOrderStatusUpdate, 
+    ServiceOrderCreate,
+    ServiceOrderResponse,
+    ServiceOrderStatusUpdate,
+    ServiceOrderValueUpdate,
+    OrderAssignTechnician,
     OrdersStats,
     OrderEventResponse,
     OrderAnalyticsResponse,
@@ -150,13 +152,29 @@ def remove_order_part(
 @router.patch("/{order_id}/assign", response_model=ServiceOrderResponse)
 def assign_technician(
     order_id: uuid.UUID,
-    technician_id: Optional[uuid.UUID] = None,
+    assign_in: OrderAssignTechnician,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Atribuição Técnica: Vincula um mestre à OS."""
+    """Atribuição Técnica: Vincula um mestre à OS. Envie technician_id=null para remover."""
     service = OrderService(db=db, tenant_id=current_user.tenant_id)
-    return service.assign_technician(order_id, technician_id)
+    return service.assign_technician(order_id, assign_in.technician_id)
+
+
+@router.patch(
+    "/{order_id}/value",
+    response_model=ServiceOrderResponse,
+    summary="Atualizar Valor do Serviço",
+    description="Define o valor cobrado do cliente pela Ordem de Serviço."
+)
+def update_order_value(
+    order_id: uuid.UUID,
+    value_in: ServiceOrderValueUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = OrderService(db=db, tenant_id=current_user.tenant_id)
+    return service.update_order_value(order_id=order_id, total_value=value_in.total_value)
 
 
 @router.get(

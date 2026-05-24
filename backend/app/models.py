@@ -3,7 +3,8 @@ import enum
 from datetime import datetime, timezone
 from sqlalchemy import String, DateTime, Enum as SqlEnum, ForeignKey, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
+from typing import Optional
 from decimal import Decimal
 
 Base = declarative_base()
@@ -80,13 +81,15 @@ class ServiceOrder(BaseModel):
 
     lead_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('leads.id', ondelete='RESTRICT'), nullable=False)
     technician_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey('technicians.id', ondelete='SET NULL'), nullable=True, index=True)
-    
+
     protocol: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
     status: Mapped[ServiceStatus] = mapped_column(SqlEnum(ServiceStatus, native_enum=False), default=ServiceStatus.OPEN, nullable=False)
     device_info: Mapped[str] = mapped_column(Text, nullable=False)
     technical_notes: Mapped[str | None] = mapped_column(Text)
     total_value: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     parts_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+
+    technician: Mapped[Optional["Technician"]] = relationship("Technician", lazy="selectin")
 
 
 class OrderEvent(BaseModel):

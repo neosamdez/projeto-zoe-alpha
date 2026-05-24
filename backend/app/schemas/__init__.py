@@ -107,6 +107,14 @@ class ServiceOrderStatusUpdate(BaseModel):
     status: ServiceStatus = Field(..., description="Novo estágio da Ordem de Serviço")
 
 
+class OrderAssignTechnician(BaseModel):
+    technician_id: Optional[uuid.UUID] = Field(None, description="UUID do Técnico. None = remover atribuição.")
+
+
+class ServiceOrderValueUpdate(BaseModel):
+    total_value: Decimal = Field(..., ge=0, description="Valor do serviço cobrado do cliente")
+
+
 class OrderEventResponse(BaseModel):
     """
     [RESPONSE CONTRACT] Detalhes de um log de auditoria.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getOrders, updateOrderStatus, getOrderEvents, getOrderParts, addOrderPart, removeOrderPart, assignTechnician, getOrdersStats, getOrdersAnalytics } from "@/lib/orders";
+import { getOrders, updateOrderStatus, getOrderEvents, getOrderParts, addOrderPart, removeOrderPart, assignTechnician, updateOrderValue, getOrdersStats, getOrdersAnalytics } from "@/lib/orders";
 import { getTechnicians } from "@/lib/technicians";
 import { getProducts } from "@/lib/products";
 import type { ServiceOrder, ServiceStatus, OrderEvent, OrderPart, Technician, Product } from "@/types";
@@ -32,6 +32,7 @@ const EVENT_COLORS: Record<string, string> = {
   STATUS_CHANGED: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   TECH_ASSIGNED: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   NOTE_ADDED: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+  VALUE_UPDATED: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
 const EVENT_LABELS: Record<string, string> = {
@@ -39,6 +40,7 @@ const EVENT_LABELS: Record<string, string> = {
   STATUS_CHANGED: "Status",
   TECH_ASSIGNED: "Técnico",
   NOTE_ADDED: "Nota",
+  VALUE_UPDATED: "Valor",
 };
 
 export function OrdersPage() {
@@ -60,6 +62,9 @@ export function OrdersPage() {
   const [addPartProductId, setAddPartProductId] = useState("");
   const [addPartQty, setAddPartQty] = useState(1);
   const [addingPart, setAddingPart] = useState(false);
+
+  const [editValue, setEditValue] = useState("");
+  const [savingValue, setSavingValue] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -106,6 +111,7 @@ export function OrdersPage() {
     setSelectedTechId("");
     setAddPartProductId("");
     setAddPartQty(1);
+    setEditValue("");
     fetchDetailData(order.id);
     fetchSupportData();
   };
@@ -145,7 +151,7 @@ export function OrdersPage() {
     if (!detailOrder) return;
     setAssigning(true);
     try {
-      await assignTechnician(detailOrder.id, "");
+      await assignTechnician(detailOrder.id, null);
       toast.success("Técnico removido");
       fetchOrders();
       fetchDetailData(detailOrder.id);
@@ -179,6 +185,28 @@ export function OrdersPage() {
       fetchDetailData(detailOrder!.id);
     } catch (err: any) {
       toast.error(err.message || "Erro ao remover insumo");
+    }
+  };
+
+  const handleSaveValue = async () => {
+    if (!detailOrder) return;
+    const val = parseFloat(editValue);
+    if (isNaN(val) || val < 0) {
+      toast.error("Valor inválido");
+      return;
+    }
+    setSavingValue(true);
+    try {
+      const updated = await updateOrderValue(detailOrder.id, val);
+      setDetailOrder(updated);
+      toast.success("Valor do serviço atualizado");
+      fetchOrders();
+      fetchDetailData(detailOrder.id);
+      setEditValue("");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar valor");
+    } finally {
+      setSavingValue(false);
     }
   };
 
@@ -338,10 +366,34 @@ export function OrdersPage() {
                       </div>
                     )}
                   </div>
-                  <div>
-                    <p className="text-zinc-500">Valor Total</p>
-                    <p className="text-white">R$ {Number(detailOrder.total_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                <div>
+                  <p className="text-zinc-500">Valor do Serviço</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white">R$ {Number(detailOrder.total_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    {editValue === "" ? (
+                      <Button variant="ghost" size="sm" onClick={() => setEditValue(String(detailOrder.total_value))} className="text-amber-400 hover:text-amber-300 h-6 px-2 text-xs">
+                        Editar
+                      </Button>
+                    ) : (
+                      <>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="bg-zinc-800 border-zinc-700 text-white h-7 w-28 text-sm"
+                        />
+                        <Button size="sm" onClick={handleSaveValue} disabled={savingValue} className="bg-amber-500 hover:bg-amber-600 text-black h-7 px-2 text-xs">
+                          {savingValue ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditValue("")} className="text-zinc-400 hover:text-white h-7 px-2 text-xs">
+                          Cancelar
+                        </Button>
+                      </>
+                    )}
                   </div>
+                </div>
                   <div>
                     <p className="text-zinc-500">Custo Peças</p>
                     <p className="text-white">R$ {Number(detailOrder.parts_cost).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>

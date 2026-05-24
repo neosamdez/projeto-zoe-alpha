@@ -361,11 +361,13 @@ class OrderService:
             ).first()
             if not tech:
                 raise HTTPException(status_code=404, detail="Técnico não encontrado.")
-        
-        order.technician_id = technician_id
-        
-        # Log de Audioria
-        description = f"Técnico atribuído: {tech.name}" if technician_id else "Responsabilidade técnica removida."
+
+            order.technician_id = technician_id
+            description = f"Técnico atribuído: {tech.name}"
+        else:
+            order.technician_id = None
+            description = "Responsabilidade técnica removida."
+
         event = OrderEvent(
             tenant_id=self.tenant_id,
             order_id=order_id,
@@ -373,7 +375,31 @@ class OrderService:
             description=description
         )
         self.db.add(event)
-        
+
+        self.db.commit()
+        self.db.refresh(order)
+        return order
+
+    def update_order_value(self, order_id: uuid.UUID, total_value: Decimal) -> ServiceOrder:
+        order = self.db.query(ServiceOrder).filter(
+            ServiceOrder.id == order_id,
+            ServiceOrder.tenant_id == self.tenant_id
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordem de Serviço não encontrada.")
+
+        old_value = order.total_value or Decimal("0.00")
+        order.total_value = total_value
+
+        event = OrderEvent(
+            tenant_id=self.tenant_id,
+            order_id=order.id,
+            event_type="VALUE_UPDATED",
+            description=f"Valor do serviço atualizado de R$ {old_value:.2f} para R$ {total_value:.2f}."
+        )
+        self.db.add(event)
+
         self.db.commit()
         self.db.refresh(order)
         return order

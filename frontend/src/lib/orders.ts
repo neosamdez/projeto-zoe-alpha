@@ -58,6 +58,17 @@ export async function assignTechnician(
   }, isServer);
 }
 
+export async function updateOrderValue(
+  orderId: string,
+  totalValue: number,
+  isServer = false
+): Promise<ServiceOrder> {
+  return apiFetch<ServiceOrder>(`/orders/${orderId}/value`, {
+    method: "PATCH",
+    body: JSON.stringify({ total_value: totalValue }),
+  }, isServer);
+}
+
 export async function getOrderEvents(orderId: string, isServer = false): Promise<OrderEvent[]> {
   return apiFetch<OrderEvent[]>(`/orders/${orderId}/events`, {}, isServer);
 }
