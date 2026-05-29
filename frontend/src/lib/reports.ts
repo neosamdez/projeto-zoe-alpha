@@ -5,23 +5,11 @@ export async function getMonthlyReport(
   year: number,
   format: "pdf" | "csv" | "json" = "json"
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-
-  const res = await fetch(
-    `${baseUrl}/reports/monthly?month=${month}&year=${year}&format=${format}`,
-    {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error("Erro ao gerar relatório");
-  }
-
   if (format === "pdf" || format === "csv") {
+    const res = await apiFetch<Response>(
+      `/reports/monthly?month=${month}&year=${year}&format=${format}`,
+      { raw: true }
+    );
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -34,5 +22,5 @@ export async function getMonthlyReport(
     return;
   }
 
-  return res.json();
+  return apiFetch(`/reports/monthly?month=${month}&year=${year}&format=json`);
 }

@@ -21,20 +21,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUser = useCallback(async (storedToken: string) => {
     try {
-      localStorage.setItem("access_token", storedToken);
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/auth/me`,
-        {
-          headers: { Authorization: `Bearer ${storedToken}` },
-        }
-      );
-      if (res.ok) {
-        const userData = await res.json();
-        setUser(userData);
-        setToken(storedToken);
-      } else {
-        clearStoredToken();
-      }
+      setStoredToken(storedToken);
+      const userData = await apiFetch<UserResponse>("/auth/me");
+      setUser(userData);
+      setToken(storedToken);
     } catch {
       clearStoredToken();
     } finally {
@@ -56,21 +46,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     formData.append("username", email);
     formData.append("password", password);
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/auth/login`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
-      }
-    );
+    const data = await apiFetch<{ access_token: string }>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData,
+    });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Credenciais inválidas" }));
-      throw new Error(err.detail || "Credenciais inválidas");
-    }
-
-    const data = await res.json();
     setStoredToken(data.access_token);
     setToken(data.access_token);
 

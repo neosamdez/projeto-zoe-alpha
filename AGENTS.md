@@ -41,11 +41,14 @@ Sistema de gestão de assistência técnica (OS) multi-tenant com FastAPI + Next
 - Seed credentials: admin@amenti.io / amenti2026
 
 ## Sprint Atual
-Sprint 27 — A Fortificação Final (em andamento)
-- 8 gaps fechados: G7 (lead email uniqueness), G13 (pagination), G16 (lead detail page), G6 (CUSTOMER removed), G9 (row click dialogs), G15 (apiFetch refactor), G8 (technician type fix)
-- Infraestrutura de testes: pytest + httpx + 6 test modules + `make test`
-- 31+ endpoints, 7 routers, 10 páginas frontend
-- RBAC completo: require_admin em POST/PATCH/DELETE de products, technicians, users
+Sprint 28 — Blindagem de Segurança (em andamento)
+- C1-C3 (Critical): pg_lock condicional, secrets rotation, stale import
+- H1-H6 (High): server-side role, user email scoped, tenant filter OS history, apiFetch raw, auth-context refactor, mass-assignment fix
+- 35 apiFetch call sites migrados para nova assinatura
+- UserCreate sem `role` — register sempre TECHNICIAN
+- UniqueConstraint('tenant_id','email') em User + Lead
+- Zero raw `fetch()` no frontend — tudo via apiFetch
+- 31+ endpoints, 7 routers, 10 páginas, 11 migrations
 
 ## Testes
 - **Comando**: `make test` (roda `pytest -v` dentro do container api)

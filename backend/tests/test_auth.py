@@ -13,13 +13,19 @@ class TestAuthRegister:
         assert data["email"] == "novo@test.io"
         assert "id" in data
 
-    def test_register_duplicate_email(self, client, seed_admin):
-        response = client.post("/api/v1/auth/register", json={
-            "full_name": "Dup",
-            "email": seed_admin.email,
-            "password": "senha2026",
-        })
-        assert response.status_code == 409
+    def test_register_creates_new_tenant(self, client, seed_admin):
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "full_name": "Dup",
+                "email": seed_admin.email,
+                "password": "senha2026",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["tenant_id"] != str(seed_admin.tenant_id)
+        assert data["role"] == "TECHNICIAN"
 
 
 class TestAuthLogin:

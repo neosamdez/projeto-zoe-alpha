@@ -10,19 +10,19 @@ import type {
 } from "@/types";
 
 export async function getOrders(isServer = false): Promise<ServiceOrder[]> {
-  return apiFetch<ServiceOrder[]>("/orders/", {}, isServer);
+  return apiFetch<ServiceOrder[]>("/orders/", { isServer });
 }
 
 export async function getOrdersByStatus(status: string, isServer = false): Promise<ServiceOrder[]> {
-  return apiFetch<ServiceOrder[]>(`/orders/?status=${status}`, {}, isServer);
+  return apiFetch<ServiceOrder[]>(`/orders/?status=${status}`, { isServer });
 }
 
 export async function searchOrders(query: string, isServer = false): Promise<ServiceOrder[]> {
-  return apiFetch<ServiceOrder[]>(`/orders/?search=${encodeURIComponent(query)}`, {}, isServer);
+  return apiFetch<ServiceOrder[]>(`/orders/?search=${encodeURIComponent(query)}`, { isServer });
 }
 
 export async function getOrderByProtocol(protocol: string, isServer = false): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/${protocol}`, {}, isServer);
+  return apiFetch<ServiceOrder>(`/orders/${protocol}`, { isServer });
 }
 
 export async function createOrderFromLead(
@@ -30,10 +30,10 @@ export async function createOrderFromLead(
   data: ServiceOrderCreate,
   isServer = false
 ): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/from-lead/${leadId}`, {
-    method: "POST",
-    body: JSON.stringify(data),
-  }, isServer);
+return apiFetch<ServiceOrder>(`/orders/from-lead/${leadId}`, {
+method: "POST",
+body: JSON.stringify(data),
+isServer });
 }
 
 export async function updateOrderStatus(
@@ -41,10 +41,10 @@ export async function updateOrderStatus(
   status: string,
   isServer = false
 ): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/${orderId}/status`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  }, isServer);
+return apiFetch<ServiceOrder>(`/orders/${orderId}/status`, {
+method: "PATCH",
+body: JSON.stringify({ status }),
+isServer });
 }
 
 export async function assignTechnician(
@@ -52,10 +52,10 @@ export async function assignTechnician(
   technicianId: string | null,
   isServer = false
 ): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/${orderId}/assign`, {
-    method: "PATCH",
-    body: JSON.stringify({ technician_id: technicianId }),
-  }, isServer);
+return apiFetch<ServiceOrder>(`/orders/${orderId}/assign`, {
+method: "PATCH",
+body: JSON.stringify({ technician_id: technicianId }),
+isServer });
 }
 
 export async function updateOrderValue(
@@ -63,10 +63,10 @@ export async function updateOrderValue(
   totalValue: number,
   isServer = false
 ): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/${orderId}/value`, {
-    method: "PATCH",
-    body: JSON.stringify({ total_value: totalValue }),
-  }, isServer);
+return apiFetch<ServiceOrder>(`/orders/${orderId}/value`, {
+method: "PATCH",
+body: JSON.stringify({ total_value: totalValue }),
+isServer });
 }
 
 export async function updateOrder(
@@ -74,10 +74,10 @@ export async function updateOrder(
   data: { device_info?: string; technical_notes?: string },
   isServer = false
 ): Promise<ServiceOrder> {
-  return apiFetch<ServiceOrder>(`/orders/${orderId}`, {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  }, isServer);
+return apiFetch<ServiceOrder>(`/orders/${orderId}`, {
+method: "PATCH",
+body: JSON.stringify(data),
+isServer });
 }
 
 export async function addOrderNote(
@@ -85,24 +85,24 @@ export async function addOrderNote(
   content: string,
   isServer = false
 ): Promise<OrderEvent> {
-  return apiFetch<OrderEvent>(`/orders/${orderId}/notes`, {
-    method: "POST",
-    body: JSON.stringify({ content }),
-  }, isServer);
+return apiFetch<OrderEvent>(`/orders/${orderId}/notes`, {
+method: "POST",
+body: JSON.stringify({ content }),
+isServer });
 }
 
 export async function deleteOrder(orderId: string, isServer = false): Promise<any> {
-  return apiFetch<any>(`/orders/${orderId}`, {
-    method: "DELETE",
-  }, isServer);
+return apiFetch<any>(`/orders/${orderId}`, {
+method: "DELETE",
+isServer });
 }
 
 export async function getOrderEvents(orderId: string, isServer = false): Promise<OrderEvent[]> {
-  return apiFetch<OrderEvent[]>(`/orders/${orderId}/events`, {}, isServer);
+  return apiFetch<OrderEvent[]>(`/orders/${orderId}/events`, { isServer });
 }
 
 export async function getOrderParts(orderId: string, isServer = false): Promise<OrderPart[]> {
-  return apiFetch<OrderPart[]>(`/orders/${orderId}/parts`, {}, isServer);
+  return apiFetch<OrderPart[]>(`/orders/${orderId}/parts`, { isServer });
 }
 
 export async function addOrderPart(
@@ -110,22 +110,22 @@ export async function addOrderPart(
   data: OrderPartCreate,
   isServer = false
 ): Promise<OrderPart> {
-  return apiFetch<OrderPart>(`/orders/${orderId}/parts`, {
-    method: "POST",
-    body: JSON.stringify(data),
-  }, isServer);
+return apiFetch<OrderPart>(`/orders/${orderId}/parts`, {
+method: "POST",
+body: JSON.stringify(data),
+isServer });
 }
 
 export async function removeOrderPart(partId: string, isServer = false): Promise<void> {
-  return apiFetch<void>(`/orders/parts/${partId}`, {
-    method: "DELETE",
-  }, isServer);
+return apiFetch<void>(`/orders/parts/${partId}`, {
+method: "DELETE",
+isServer });
 }
 
 export async function getOrdersStats(isServer = false): Promise<OrdersStats> {
-  return apiFetch<OrdersStats>("/orders/stats", {}, isServer);
+  return apiFetch<OrdersStats>("/orders/stats", { isServer });
 }
 
 export async function getOrdersAnalytics(days = 30, isServer = false): Promise<AnalyticsResponse> {
-  return apiFetch<AnalyticsResponse>(`/orders/analytics?days=${days}`, {}, isServer);
+  return apiFetch<AnalyticsResponse>(`/orders/analytics?days=${days}`, { isServer });
 }

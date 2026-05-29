@@ -47,7 +47,7 @@ class ProductService:
 
         db_product = Product(
             tenant_id=self.tenant_id,
-            **product_in.model_dump()
+            **product_in.model_dump(exclude_unset=True)
         )
         self.db.add(db_product)
         self.db.commit()

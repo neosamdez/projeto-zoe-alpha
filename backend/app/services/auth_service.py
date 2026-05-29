@@ -21,27 +21,30 @@ class AuthService:
     def register_user(self, user_in: UserCreate) -> User:
         """
         Registra um novo Operador.
-        Trava de duplicidade: e-mail único globalmente.
+        Trava de duplicidade: e-mail único por tenant (tenant_id + email).
+        Role SEMPRE TECHNICIAN — atribuição de ADMIN só via UserUpdateByAdmin.
         Se não houver tenant_id vinculado (Módulo Público), forja uma nova Cidadela (Tenant).
         """
+        from app.models import UserRole
+
+        final_tenant_id = self.tenant_id or uuid.uuid4()
+
         existing = (
             self.db.query(User)
-            .filter(User.email == user_in.email)
+            .filter(User.email == user_in.email, User.tenant_id == final_tenant_id)
             .first()
         )
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"E-mail '{user_in.email}' já possui registro na Matrix."
+                detail=f"E-mail '{user_in.email}' já possui registro neste tenant."
             )
-
-        final_tenant_id = self.tenant_id or uuid.uuid4()
 
         new_user = User(
             full_name=user_in.full_name,
             email=user_in.email,
             hashed_password=get_password_hash(user_in.password),
-            role=user_in.role,
+            role=UserRole.TECHNICIAN,
             tenant_id=final_tenant_id,
         )
         self.db.add(new_user)

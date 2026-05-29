@@ -40,7 +40,7 @@ class TechnicianService:
         """Forja uma nova identidade técnica no sistema."""
         db_tech = Technician(
             tenant_id=self.tenant_id,
-            **tech_in.model_dump()
+            **tech_in.model_dump(exclude_unset=True)
         )
         self.db.add(db_tech)
         self.db.commit()

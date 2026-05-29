@@ -10,17 +10,22 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface ApiFetchOptions extends RequestInit {
+  raw?: boolean;
+  isServer?: boolean;
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
-  isServer: boolean = false
+  options: ApiFetchOptions = {}
 ): Promise<T> {
+  const { raw = false, isServer = false, ...fetchOptions } = options;
   const baseUrl = getApiUrl(isServer);
   const token = !isServer ? getStoredToken() : null;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(raw ? {} : { "Content-Type": "application/json" }),
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   if (token) {
@@ -28,7 +33,7 @@ export async function apiFetch<T>(
   }
 
   const res = await fetch(`${baseUrl}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -47,6 +52,10 @@ export async function apiFetch<T>(
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: "Erro desconhecido" }));
     throw new Error(body.detail || `Erro ${res.status}`);
+  }
+
+  if (raw) {
+    return res as T;
   }
 
   return res.json();

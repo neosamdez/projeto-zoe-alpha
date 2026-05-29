@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.api.dependencies import get_tenant_id, get_current_user
+from app.api.dependencies import get_current_user
 from app.models import User
 from app.services.auth_service import AuthService
 from app.core.security import create_access_token
@@ -63,7 +63,7 @@ def get_me(current_user: User = Depends(get_current_user)):
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Registro de novo Operador",
-    description="Cria um novo usuário no Tenant. Requer Header X-Tenant-ID."
+    description="Cria um novo usuário no Tenant do token JWT do admin."
 )
 def register(
     user_in: UserCreate,

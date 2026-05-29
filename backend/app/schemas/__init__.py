@@ -204,11 +204,12 @@ class UserCreate(BaseModel):
     """
     [CONTRATO REST RÍGIDO] Registro de novo Usuário.
     A senha em texto plano é recebida aqui e imediatamente hashada no Service.
+    Role NÃO é aceito — o sistema sempre atribui TECHNICIAN no registro público.
+    Atribuição de ADMIN só via UserUpdateByAdmin (require_admin).
     """
     full_name: str = Field(..., max_length=255, description="Nome completo do Operador")
     email: EmailStr = Field(..., description="E-mail único do Operador")
     password: str = Field(..., min_length=8, description="Senha (mínimo 8 caracteres)")
-    role: UserRole = Field(default=UserRole.TECHNICIAN, description="Papel do usuário no sistema")
 
 
 class UserResponse(BaseModel):

@@ -89,6 +89,7 @@ class LeadService:
         # Busca histórico de OS
         os_history = self.db.query(ServiceOrder).filter(
             ServiceOrder.lead_id == lead_id,
+            ServiceOrder.tenant_id == self.tenant_id,
             ServiceOrder.deleted_at == None
         ).order_by(ServiceOrder.created_at.desc()).all()
 

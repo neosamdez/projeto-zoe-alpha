@@ -7,3 +7,4 @@ venv/
 alembic/versions/__pycache__/
 .DS_Store
 *.db
+node_modules/

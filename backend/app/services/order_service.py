@@ -21,13 +21,14 @@ class OrderService:
         """
         Gera o protocolo sequencial no padrão ASI-YY-XXXX.
         Reseta a cada ano. Usa pg_advisory_xact_lock para prevenir
-        race condition em criação concorrente de OS.
+        race condition em criação concorrente de OS (PostgreSQL only).
         """
         current_year = datetime.now(timezone.utc).year
         year_suffix = str(current_year)[-2:]
 
-        lock_key = current_year
-        self.db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
+        if self.db.bind.dialect.name == "postgresql":
+            lock_key = current_year
+            self.db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
 
         last_order = self.db.query(ServiceOrder).filter(
             extract('year', ServiceOrder.created_at) == current_year
