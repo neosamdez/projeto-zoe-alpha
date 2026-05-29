@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_admin
 from app.schemas import TechnicianCreate, TechnicianUpdate, TechnicianResponse
 from app.models import User
 from app.services.technician_service import TechnicianService
@@ -24,9 +24,9 @@ def list_technicians(
 def create_technician(
     tech_in: TechnicianCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Forja de Talentos: Adiciona um novo mestre à equipe."""
+    """Forja de Talentos: Adiciona um novo mestre à equipe. Acesso ADMIN."""
     service = TechnicianService(db, current_user.tenant_id)
     return service.create_technician(tech_in)
 
@@ -45,9 +45,9 @@ def update_technician(
     tech_id: uuid.UUID,
     tech_in: TechnicianUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Refino de Mestre: Atualiza dados do técnico."""
+    """Refino de Mestre: Atualiza dados do técnico. Acesso ADMIN."""
     service = TechnicianService(db, current_user.tenant_id)
     return service.update_technician(tech_id, tech_in)
 
@@ -55,9 +55,9 @@ def update_technician(
 def delete_technician(
     tech_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Expurgo de Cadastro: Remove (Soft Delete) um técnico da guilda."""
+    """Expurgo de Cadastro: Remove (Soft Delete) um técnico da guilda. Acesso ADMIN."""
     service = TechnicianService(db, current_user.tenant_id)
     service.delete_technician(tech_id)
     return None

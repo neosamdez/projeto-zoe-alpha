@@ -66,6 +66,14 @@ class ProductService:
         self.db.refresh(db_product)
         return db_product
 
+    def get_low_stock_products(self) -> list[Product]:
+        """Retorna produtos com estoque atual abaixo ou igual ao mínimo."""
+        return self.db.query(Product).filter(
+            Product.tenant_id == self.tenant_id,
+            Product.deleted_at.is_(None),
+            Product.current_stock <= Product.min_stock
+        ).all()
+
     def delete_product(self, product_id: uuid.UUID):
         """Remove um item do arsenal (Soft Delete)."""
         db_product = self.get_product(product_id)

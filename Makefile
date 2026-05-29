@@ -5,7 +5,7 @@
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 .PHONY: up down restart restart-api restart-frontend logs logs-api logs-frontend \
-        db-shell alembic-upgrade alembic-revision ps
+db-shell alembic-upgrade alembic-revision ps test
 
 # ── ORQUESTRAÇÃO PRINCIPAL ────────────────────────────────────────────────────
 
@@ -66,3 +66,9 @@ alembic-upgrade:
 ## Gera nova migration (uso: make alembic-revision m="descricao_da_migration")
 alembic-revision:
 	docker compose exec api alembic revision --autogenerate -m "$(m)"
+
+# ── TESTES ───────────────────────────────────────────────────────────────────
+
+## Executa todos os testes pytest (smoke test da API)
+test:
+	docker compose exec api pytest -v

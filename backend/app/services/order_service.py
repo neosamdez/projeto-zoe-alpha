@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, func, desc, case
+from sqlalchemy import extract, func, desc, case, text
 from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart, Product, Technician
 from app.schemas import ServiceOrderCreate, OrdersStats, TechnicianProfit
 from app.schemas.order_part import OrderPartCreate
@@ -20,12 +20,15 @@ class OrderService:
     def generate_protocol(self) -> str:
         """
         Gera o protocolo sequencial no padrão ASI-YY-XXXX.
-        Reseta a cada ano.
+        Reseta a cada ano. Usa pg_advisory_xact_lock para prevenir
+        race condition em criação concorrente de OS.
         """
         current_year = datetime.now(timezone.utc).year
         year_suffix = str(current_year)[-2:]
 
-        # Busca a última OS global criada neste ano para manter a unicidade do Protocolo
+        lock_key = current_year
+        self.db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
+
         last_order = self.db.query(ServiceOrder).filter(
             extract('year', ServiceOrder.created_at) == current_year
         ).order_by(ServiceOrder.created_at.desc()).first()
@@ -33,7 +36,6 @@ class OrderService:
         if not last_order or not last_order.protocol.startswith(f"ASI-{year_suffix}-"):
             new_sequence = 1
         else:
-            # Extrai o numero do protocolo ASI-YY-XXXX
             try:
                 last_sequence_str = last_order.protocol.split('-')[2]
                 new_sequence = int(last_sequence_str) + 1

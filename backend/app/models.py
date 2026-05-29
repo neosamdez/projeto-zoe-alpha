@@ -30,7 +30,6 @@ class BaseModel(Base):
 class UserRole(str, enum.Enum):
     ADMIN = 'ADMIN'
     TECHNICIAN = 'TECHNICIAN'
-    CUSTOMER = 'CUSTOMER'
 
 
 class User(BaseModel):
@@ -46,6 +45,9 @@ class User(BaseModel):
 
 class Lead(BaseModel):
     __tablename__ = 'leads'
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'email', name='uq_lead_tenant_email'),
+    )
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)

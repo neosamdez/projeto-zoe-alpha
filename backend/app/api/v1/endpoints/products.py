@@ -3,12 +3,21 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_admin
 from app.schemas import ProductCreate, ProductUpdate, ProductResponse
 from app.services.product_service import ProductService
 from app.models import User
 
 router = APIRouter()
+
+@router.get("/low-stock", response_model=List[ProductResponse])
+def get_low_stock(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Alerta Tático: Produtos com estoque abaixo do mínimo."""
+    service = ProductService(db, current_user.tenant_id)
+    return service.get_low_stock_products()
 
 @router.get("/", response_model=List[ProductResponse])
 def list_inventory(
@@ -25,9 +34,9 @@ def list_inventory(
 def create_product(
     product_in: ProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Forja de Suprimentos: Adiciona um novo SKU ao Arsenal."""
+    """Forja de Suprimentos: Adiciona um novo SKU ao Arsenal. Acesso ADMIN."""
     service = ProductService(db, current_user.tenant_id)
     return service.create_product(product_in)
 
@@ -46,9 +55,9 @@ def update_product(
     product_id: uuid.UUID,
     product_in: ProductUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Refino de Arsenal: Atualiza dados de um produto (estoque, custo, etc)."""
+    """Refino de Arsenal: Atualiza dados de um produto. Acesso ADMIN."""
     service = ProductService(db, current_user.tenant_id)
     return service.update_product(product_id, product_in)
 
@@ -56,9 +65,9 @@ def update_product(
 def delete_product(
     product_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
-    """Expurgo de SKU: Remove um produto do inventário (Soft Delete)."""
+    """Expurgo de SKU: Remove um produto do inventário (Soft Delete). Acesso ADMIN."""
     service = ProductService(db, current_user.tenant_id)
     service.delete_product(product_id)
     return {"message": "Item removido do Arsenal com sucesso."}

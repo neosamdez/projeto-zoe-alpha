@@ -78,3 +78,14 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
             detail="Acesso restrito a Administradores do Sistema."
         )
     return current_user
+
+
+def require_admin_or_technician(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency que exige role ADMIN ou TECHNICIAN. Operacoes de bancada."""
+    from app.models import UserRole
+    if current_user.role not in (UserRole.ADMIN, UserRole.TECHNICIAN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito a Administradores ou Técnicos."
+        )
+    return current_user

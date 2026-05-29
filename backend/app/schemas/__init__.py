@@ -235,6 +235,16 @@ class UserResponse(BaseModel):
         return super().model_validate(obj, *args, **kwargs)
 
 
+class UserUpdateByAdmin(BaseModel):
+    """
+    [CONTRATO REST RÍGIDO] Atualização de Usuário por ADMIN.
+    ADMIN pode alterar role, is_active e full_name. Nunca e-mail ou senha.
+    """
+    role: Optional[UserRole] = Field(None, description="Novo papel: ADMIN ou TECHNICIAN")
+    is_active: Optional[bool] = Field(None, description="Ativa/desativa o Operador")
+    full_name: Optional[str] = Field(None, max_length=255, description="Nome completo")
+
+
 class Token(BaseModel):
     """
     [RESPONSE CONTRACT] Payload de autenticação retornado ao cliente após login.

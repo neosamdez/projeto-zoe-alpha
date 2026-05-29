@@ -17,6 +17,16 @@ class LeadService:
 
     def create_lead(self, lead_in: LeadCreate) -> Lead:
         """Processo Estrito de Cadastramento e Vinculação ao Tenant."""
+        existing = self.db.query(Lead).filter(
+            Lead.tenant_id == self.tenant_id,
+            Lead.email == lead_in.email,
+            Lead.deleted_at.is_(None)
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"E-mail '{lead_in.email}' já cadastrado neste tenant."
+            )
         db_lead = Lead(
             tenant_id=self.tenant_id,
             name=lead_in.name,

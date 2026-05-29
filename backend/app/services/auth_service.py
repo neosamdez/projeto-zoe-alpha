@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
 from app.models import User
-from app.schemas import UserCreate
+from app.schemas import UserCreate, UserUpdateByAdmin
 from app.core.security import get_password_hash, verify_password
+from datetime import datetime, timezone
 
 
 class AuthService:
@@ -70,3 +71,47 @@ class AuthService:
                 detail="Usuário inativo. Contate o administrador.",
             )
         return user
+
+    def list_users(self) -> list[User]:
+        """Lista todos os Operadores ativos do Tenant."""
+        return self.db.query(User).filter(
+            User.tenant_id == self.tenant_id,
+            User.deleted_at.is_(None)
+        ).order_by(User.created_at.desc()).all()
+
+    def update_user(self, user_id: uuid.UUID, user_in: UserUpdateByAdmin) -> User:
+        """Atualiza role, is_active e/ou full_name de um Operador."""
+        user = self.db.query(User).filter(
+            User.id == user_id,
+            User.tenant_id == self.tenant_id,
+            User.deleted_at.is_(None)
+        ).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Operador não encontrado."
+            )
+        if user_in.role is not None:
+            user.role = user_in.role
+        if user_in.is_active is not None:
+            user.is_active = user_in.is_active
+        if user_in.full_name is not None:
+            user.full_name = user_in.full_name
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def delete_user(self, user_id: uuid.UUID) -> None:
+        """Soft delete de Operador. Nunca pode deletar a si mesmo (validado no endpoint)."""
+        user = self.db.query(User).filter(
+            User.id == user_id,
+            User.tenant_id == self.tenant_id,
+            User.deleted_at.is_(None)
+        ).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Operador não encontrado."
+            )
+        user.deleted_at = datetime.now(timezone.utc)
+        self.db.commit()
