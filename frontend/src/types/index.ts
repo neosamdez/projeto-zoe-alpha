@@ -45,7 +45,7 @@ export interface ServiceOrder {
   total_value: number;
   parts_cost: number;
   technician_id?: string;
-  technician?: { id: string; name: string } | null;
+  technician?: { id: string; name: string; specialization?: string; is_active: boolean } | null;
   created_at: string;
 }
 

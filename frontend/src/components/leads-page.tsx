@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { getLeads, createLead, updateLead, deleteLead } from "@/lib/leads";
 import { createOrderFromLead } from "@/lib/orders";
 import type { Lead, LeadCreate, LeadUpdate } from "@/types";
@@ -12,8 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserPlus, Search, Pencil, Trash2, Users, Phone, Mail, ClipboardPlus } from "lucide-react";
 import { toast } from "sonner";
+import { PaginationControls } from "@/components/pagination-controls";
+
+const PAGE_SIZE = 15;
 
 export function LeadsPage() {
+const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -26,6 +31,7 @@ export function LeadsPage() {
   const [osLead, setOsLead] = useState<Lead | null>(null);
   const [osForm, setOsForm] = useState({ device_info: "", technical_notes: "" });
   const [osLoading, setOsLoading] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -121,6 +127,9 @@ export function LeadsPage() {
       l.phone.includes(search)
   );
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -170,7 +179,7 @@ export function LeadsPage() {
         <Input
           placeholder="Buscar por nome, e-mail ou telefone..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="pl-10 bg-zinc-900 border-zinc-800 text-white"
         />
       </div>
@@ -179,7 +188,7 @@ export function LeadsPage() {
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <Users className="h-5 w-5 text-amber-500" />
-            {filtered.length} cliente(s)
+            {filtered.length} cliente(s) — exibindo {paged.length} de {filtered.length}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -197,37 +206,37 @@ export function LeadsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((lead) => (
-              <TableRow key={lead.id} className="border-zinc-800">
-                <TableCell className="text-white font-medium">{lead.name}</TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-1 text-zinc-400"><Mail className="h-3 w-3" />{lead.email}</span>
-                </TableCell>
-                <TableCell>
-                  <span className="flex items-center gap-1 text-zinc-400"><Phone className="h-3 w-3" />{lead.phone}</span>
-                </TableCell>
-                <TableCell className="text-amber-500 font-semibold">{lead.total_os}</TableCell>
-                <TableCell className="text-zinc-500">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(lead)} className="text-zinc-400 hover:text-white">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openCreateOS(lead)}
-                    disabled={lead.total_os > 0}
-                    className={lead.total_os > 0 ? "text-zinc-600" : "text-amber-500 hover:text-amber-400"}
-                    title={lead.total_os > 0 ? "Este lead já possui OS" : "Criar Ordem de Serviço"}
-                  >
-                    <ClipboardPlus className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
+        {paged.map((lead) => (
+          <TableRow key={lead.id} className="border-zinc-800 cursor-pointer hover:bg-zinc-800/50" onClick={() => router.push(`/leads/${lead.id}`)}>
+            <TableCell className="text-white font-medium">{lead.name}</TableCell>
+            <TableCell>
+              <span className="flex items-center gap-1 text-zinc-400"><Mail className="h-3 w-3" />{lead.email}</span>
+            </TableCell>
+            <TableCell>
+              <span className="flex items-center gap-1 text-zinc-400"><Phone className="h-3 w-3" />{lead.phone}</span>
+            </TableCell>
+            <TableCell className="text-amber-500 font-semibold">{lead.total_os}</TableCell>
+            <TableCell className="text-zinc-500">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="sm" onClick={() => openEdit(lead)} className="text-zinc-400 hover:text-white">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openCreateOS(lead)}
+                disabled={lead.total_os > 0}
+                className={lead.total_os > 0 ? "text-zinc-600" : "text-amber-500 hover:text-amber-400"}
+                title={lead.total_os > 0 ? "Este lead já possui OS" : "Criar Ordem de Serviço"}
+              >
+                <ClipboardPlus className="h-4 w-4" />
+              </Button>
+            </TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
                     size="sm"
                     onClick={() => handleDelete(lead)}
                     disabled={lead.total_os > 0}
@@ -239,7 +248,7 @@ export function LeadsPage() {
                 </TableCell>
                 </TableRow>
               ))}
-            {filtered.length === 0 && (
+            {paged.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-zinc-500 py-8">Nenhum cliente encontrado</TableCell>
               </TableRow>
@@ -248,6 +257,8 @@ export function LeadsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800">

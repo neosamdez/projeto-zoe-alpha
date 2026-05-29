@@ -17,6 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Search, ClipboardList, ArrowRight, Clock, Package, UserCheck, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PaginationControls } from "@/components/pagination-controls";
+
+const PAGE_SIZE = 15;
 
 const STATUS_FLOW: Record<ServiceStatus, ServiceStatus[]> = {
   OPEN: ["DIAGNOSING", "CANCELED"],
@@ -79,6 +82,7 @@ export function OrdersPage() {
   const [editTechNotes, setEditTechNotes] = useState("");
   const [editingFields, setEditingFields] = useState(false);
   const [savingFields, setSavingFields] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -298,6 +302,9 @@ export function OrdersPage() {
     return matchStatus && matchSearch;
   });
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="space-y-6">
       <div>
@@ -311,7 +318,7 @@ export function OrdersPage() {
           <Input
             placeholder="Buscar por protocolo, cliente ou dispositivo..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-10 bg-zinc-900 border-zinc-800 text-white"
           />
         </div>
@@ -331,7 +338,7 @@ export function OrdersPage() {
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-amber-500" />
-            {filtered.length} ordem(ns)
+            {filtered.length} ordem(ns) — exibindo {paged.length} de {filtered.length}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -349,7 +356,7 @@ export function OrdersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((order) => (
+              {paged.map((order) => (
                 <TableRow key={order.id} className="border-zinc-800">
                   <TableCell className="text-amber-500 font-mono font-semibold">{order.protocol}</TableCell>
                   <TableCell className="text-white">{order.lead_name || "—"}</TableCell>
@@ -365,7 +372,7 @@ export function OrdersPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.length === 0 && (
+              {paged.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center text-zinc-500 py-8">Nenhuma ordem encontrada</TableCell>
                 </TableRow>
@@ -374,6 +381,8 @@ export function OrdersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <PaginationControls page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <Dialog open={!!detailOrder} onOpenChange={() => setDetailOrder(null)}>
         <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[85vh] overflow-y-auto">

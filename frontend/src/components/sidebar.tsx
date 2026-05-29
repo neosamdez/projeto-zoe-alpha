@@ -15,20 +15,26 @@ import {
   FileBarChart,
   LogOut,
   Zap,
+  UserCog,
 } from "lucide-react";
+
+const adminOnlyItems = [
+  { href: "/products", label: "Inventário", icon: Package },
+  { href: "/technicians", label: "Equipe", icon: Wrench },
+  { href: "/users", label: "Usuários", icon: UserCog },
+];
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Clientes", icon: Users },
   { href: "/orders", label: "Ordens", icon: ClipboardList },
-  { href: "/products", label: "Inventário", icon: Package },
-  { href: "/technicians", label: "Equipe", icon: Wrench },
   { href: "/reports", label: "Relatórios", icon: FileBarChart },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-zinc-950 border-r border-zinc-800 flex flex-col">
@@ -60,6 +66,26 @@ export function Sidebar() {
             {item.label}
           </Link>
         ))}
+        {isAdmin && (
+          <>
+            <Separator className="bg-zinc-800 my-2" />
+            {adminOnlyItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                  pathname === item.href
+                    ? "bg-amber-500/10 text-amber-500 font-medium"
+                    : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+          </>
+        )}
       </nav>
 
       <div className="p-4 border-t border-zinc-800">

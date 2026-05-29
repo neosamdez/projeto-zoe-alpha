@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { API_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -27,19 +27,14 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/register`, {
+      await apiFetch("/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: form.full_name,
           email: form.email,
           password: form.password,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Erro ao registrar" }));
-        throw new Error(err.detail || "Erro ao registrar");
-      }
       toast.success("Registro concluído! Faça login para entrar.");
       router.push("/login");
     } catch (err: any) {

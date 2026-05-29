@@ -1,4 +1,4 @@
-export type UserRole = "ADMIN" | "TECHNICIAN" | "CUSTOMER";
+export type UserRole = "ADMIN" | "TECHNICIAN";
 
 export interface TokenResponse {
   access_token: string;
@@ -20,4 +20,10 @@ export interface UserCreate {
   email: string;
   password: string;
   role?: UserRole;
+}
+
+export interface UserUpdateByAdmin {
+  role?: UserRole;
+  is_active?: boolean;
+  full_name?: string;
 }
