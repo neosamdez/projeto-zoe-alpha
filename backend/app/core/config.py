@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     DB_URL: str
     X_TENANT_ID: str
     SECRET_KEY: str
+    ADMIN_EMAIL: str
+    REDIS_URL: str = "redis://redis:6379/0"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas — jornada operacional soberana
 
     model_config = SettingsConfigDict(

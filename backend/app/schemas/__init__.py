@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field, EmailStr
 
 from .product import ProductCreate, ProductUpdate, ProductResponse
 from .order_part import OrderPartCreate, OrderPartResponse
+from .rma import (
+    RmaRequestCreate, RmaRequestResponse, RmaStatusUpdate,
+    RmaInspectionCreate, RmaInspectionResponse,
+    ReturnedPartCreate, ReturnedPartResponse,
+    DefectCodeResponse, RmaRequestDetail,
+)
+from .inventory import InventoryMovementCreate, InventoryMovementResponse, InventoryDashboard
+from .delivery import DeliveryPendingCreate, DeliveryPendingResponse, DeliveryReceiveUpdate
+from .discard import DiscardRecordCreate, DiscardRecordResponse, DiscardAuthorizeUpdate
+from .kpi import KpiMetricCreate, KpiMetricResponse, KpiDashboard, KpiBonusSummary
 
 class LeadCreate(BaseModel):
     """

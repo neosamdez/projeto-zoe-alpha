@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { getOrdersStats, getOrdersAnalytics } from "@/lib/orders";
-import type { OrdersStats, VolumeItem, StatusItem } from "@/types";
+import { getRmas } from "@/lib/rma";
+import { getLowStock } from "@/lib/inventory";
+import type { OrdersStats, VolumeItem, StatusItem, RmaRequest, Product } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StockAlert } from "@/components/ui/stock-alert";
 import {
   ClipboardList,
   CircleDot,
@@ -13,6 +16,8 @@ import {
   TrendingUp,
   Package,
   BarChart3,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import {
   LineChart,
@@ -28,7 +33,7 @@ import {
   Legend,
 } from "recharts";
 
-const STATUS_COLORS: Record<string, string> = {
+const PIE_COLORS: Record<string, string> = {
   OPEN: "#3b82f6",
   DIAGNOSING: "#eab308",
   AWAITING_PARTS: "#f97316",
@@ -38,7 +43,7 @@ const STATUS_COLORS: Record<string, string> = {
   CANCELED: "#ef4444",
 };
 
-const STATUS_LABELS: Record<string, string> = {
+const PIE_LABELS: Record<string, string> = {
   OPEN: "Aberta",
   DIAGNOSING: "Diagnosticando",
   AWAITING_PARTS: "Aguard. Peças",
@@ -66,14 +71,20 @@ export function DashboardPage() {
   const [stats, setStats] = useState<OrdersStats | null>(null);
   const [analytics, setAnalytics] = useState<{ volume: VolumeItem[]; distribution: StatusItem[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingRmas, setPendingRmas] = useState<RmaRequest[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     Promise.all([
       getOrdersStats().catch(() => null),
       getOrdersAnalytics(30).catch(() => null),
-    ]).then(([s, a]) => {
+      getRmas("PENDING").catch(() => []),
+      getLowStock().catch(() => []),
+    ]).then(([s, a, rmas, lowStock]) => {
       setStats(s);
       setAnalytics(a);
+      setPendingRmas(rmas);
+      setLowStockProducts(lowStock);
       setLoading(false);
     });
   }, []);
@@ -134,9 +145,9 @@ export function DashboardPage() {
   ];
 
   const pieData = (analytics?.distribution || []).map((d) => ({
-    name: STATUS_LABELS[d.status] || d.status,
-    value: d.count,
-    color: STATUS_COLORS[d.status] || "#71717a",
+name: PIE_LABELS[d.status] || d.status,
+      value: d.count,
+      color: PIE_COLORS[d.status] || "#71717a",
   }));
 
   return (
@@ -144,6 +155,7 @@ export function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold text-white">Dashboard</h1>
         <p className="text-zinc-400 mt-1">Visão tática e operacional da Cidadela</p>
+        <StockAlert count={lowStockProducts.length} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -242,6 +254,55 @@ export function DashboardPage() {
         )}
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2 text-sm">
+              <RotateCcw className="h-4 w-4 text-amber-500" />
+              RMA Pendentes ({pendingRmas.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pendingRmas.length === 0 ? (
+              <p className="text-zinc-500 text-sm">Nenhum RMA pendente</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {pendingRmas.slice(0, 8).map((rma) => (
+                  <span key={rma.id} className="bg-amber-500/10 text-amber-400 text-xs px-2 py-1 rounded font-mono">
+                    {rma.protocol}
+                  </span>
+                ))}
+                {pendingRmas.length > 8 && <span className="text-zinc-500 text-xs">+{pendingRmas.length - 8} mais</span>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              Estoque Baixo ({lowStockProducts.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lowStockProducts.length === 0 ? (
+              <p className="text-zinc-500 text-sm">Nenhum produto com estoque baixo</p>
+            ) : (
+              <div className="space-y-2">
+                {lowStockProducts.slice(0, 5).map((p) => (
+                  <div key={p.id} className="flex items-center justify-between">
+                    <span className="text-white text-sm">{p.name}</span>
+                    <span className="text-red-400 text-xs font-mono">{p.current_stock}/{p.min_stock}</span>
+                  </div>
+                ))}
+                {lowStockProducts.length > 5 && <span className="text-zinc-500 text-xs">+{lowStockProducts.length - 5} mais</span>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {stats.technician_ranking && stats.technician_ranking.length > 0 && (
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
@@ -267,3 +328,4 @@ export function DashboardPage() {
     </div>
   );
 }
+

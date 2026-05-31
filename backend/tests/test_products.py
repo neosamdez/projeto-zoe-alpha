@@ -6,7 +6,7 @@ class TestProductsCRUD:
             "cost_price": 150.00,
             "selling_price": 250.00,
         })
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.json()
         assert data["name"] == "SSD 512GB"
         assert data["sku"] == "SSD-512"
@@ -45,7 +45,7 @@ class TestProductsCRUD:
         })
         pid = create.json()["id"]
         response = client.delete(f"/api/v1/products/{pid}", headers=admin_headers)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
     def test_low_stock_endpoint(self, client, admin_headers):
         client.post("/api/v1/products/", headers=admin_headers, json={

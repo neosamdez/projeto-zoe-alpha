@@ -4,13 +4,16 @@ Funções reutilizáveis que garantem autenticação, autorização e isolamento
 em todas as rotas protegidas do sistema.
 """
 import uuid
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.security import decode_access_token
 from app.models import User
+from app.services.email_service import EmailService
+from app.services.alert_service import AlertService
+from app.services.inventory_service import InventoryService
 
 # Esquema Bearer: aponta para o endpoint de login no Swagger
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -89,3 +92,12 @@ def require_admin_or_technician(current_user: User = Depends(get_current_user)) 
             detail="Acesso restrito a Administradores ou Técnicos."
         )
     return current_user
+
+
+def get_inventory_service(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> InventoryService:
+    email_service = EmailService()
+    alert_service = AlertService(db=db, email_service=email_service, tenant_id=current_user.tenant_id)
+    return InventoryService(db=db, tenant_id=current_user.tenant_id, alert_service=alert_service)

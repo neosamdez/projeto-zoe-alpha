@@ -7,27 +7,39 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  Package,
-  Wrench,
-  FileBarChart,
-  LogOut,
-  Zap,
-  UserCog,
+LayoutDashboard,
+Users,
+ClipboardList,
+Package,
+Wrench,
+FileBarChart,
+LogOut,
+Zap,
+UserCog,
+RotateCcw,
+PackageSearch,
+Truck,
+Trash2,
+Award,
+Bell,
 } from "lucide-react";
 
 const adminOnlyItems = [
-  { href: "/products", label: "Inventário", icon: Package },
-  { href: "/technicians", label: "Equipe", icon: Wrench },
-  { href: "/users", label: "Usuários", icon: UserCog },
+{ href: "/products", label: "Inventário", icon: Package },
+{ href: "/technicians", label: "Equipe", icon: Wrench },
+{ href: "/users", label: "Usuários", icon: UserCog },
+{ href: "/alert-configs", label: "Alertas", icon: Bell },
+{ href: "/kpi", label: "KPI / P4P", icon: Award },
 ];
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Clientes", icon: Users },
   { href: "/orders", label: "Ordens", icon: ClipboardList },
+  { href: "/rma", label: "RMA", icon: RotateCcw },
+  { href: "/inventory", label: "Movimentações", icon: PackageSearch },
+  { href: "/deliveries", label: "Entregas", icon: Truck },
+  { href: "/discards", label: "Descartes", icon: Trash2 },
   { href: "/reports", label: "Relatórios", icon: FileBarChart },
 ];
 

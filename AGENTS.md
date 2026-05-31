@@ -7,8 +7,9 @@ Sistema de gestão de assistência técnica (OS) multi-tenant com FastAPI + Next
 - **Backend**: FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Alembic
 - **Frontend**: Next.js 16 + shadcn/ui + recharts + TypeScript
 - **Banco**: PostgreSQL 16 (Docker dev)
+- **Cache**: Redis 7 (Docker, graceful fallback)
 - **Auth**: Custom JWT (PyJWT)
-- **Infra**: Docker Compose (4 containers: db, api, frontend, adminer)
+- **Infra**: Docker Compose (5 containers: db, api, redis, frontend, adminer)
 
 ## Agentes Responsáveis
 - **Heisenberg**: Backend Python (routers, services, models, schemas, migrations)
@@ -22,41 +23,36 @@ Sistema de gestão de assistência técnica (OS) multi-tenant com FastAPI + Next
 
 ### Backend (Heisenberg)
 - Toda tabela DEVE ter `tenant_id`. Queries SEMPRE filtradas
-- Protocolo sequencial `ASI-YY-XXXX` para ServiceOrders
+- Protocolo sequencial `ASI-YY-XXXX` para ServiceOrders, `RMA-YY-XXXX` para RMAs
 - NUNCA alterar `models.py` sem Alembic migration imediata
 - Service layer ISOLADA dos routers — controllers são thin
+- Services usam `__init__(self, db, tenant_id)` pattern (NÃO static methods)
 - Soft delete via `deleted_at` (nullable)
-- Enums: `UserRole` (ADMIN/TECHNICIAN), `ServiceStatus` (7 estados)
+- Enums: `UserRole` (ADMIN/TECHNICIAN), `ServiceStatus` (7 estados), `RmaStatus` (6), `DeliveryStatus` (3), `DiscardStatus` (3), `ReturnCode` (10), `InspectionResult` (3), `MovementType` (6)
+- Cache: `cache_get` antes de queries pesadas, `cache_set` após, `cache_invalidate` em writes
+- `RETURN_CODE_DEADLINES` dict: 805→30, 807→60, 808→7, 809→2, 816→0, 819→7, 821→30, 828→7, 838→60, 839→200
 
 ### Frontend (Steve)
 - Server Components/Actions → rede Docker (`INTERNAL_API_URL = http://api:8000`)
 - Client Components → proxy (`NEXT_PUBLIC_API_URL = http://localhost:8000`)
 - 401 → `redirect('/login')`. NUNCA `throw new Error`
 - Combobox (não Select) em listas dinâmicas
-- API clients em `src/lib/api/` — tipados com interfaces TypeScript
+- API clients tipados com `apiFetch`
 
-### Infra
-- Docker Compose para dev local: `make up`
-- Nenhum deploy serverless ainda — quando pronto, Neo migra
-- Seed credentials: admin@amenti.io / amenti2026
+### Protocolo de Raciocínio (Reasoning Trace)
 
-## Sprint Atual
-Sprint 28 — Blindagem de Segurança (em andamento)
-- C1-C3 (Critical): pg_lock condicional, secrets rotation, stale import
-- H1-H6 (High): server-side role, user email scoped, tenant filter OS history, apiFetch raw, auth-context refactor, mass-assignment fix
-- 35 apiFetch call sites migrados para nova assinatura
-- UserCreate sem `role` — register sempre TECHNICIAN
-- UniqueConstraint('tenant_id','email') em User + Lead
-- Zero raw `fetch()` no frontend — tudo via apiFetch
-- 31+ endpoints, 7 routers, 10 páginas, 11 migrations
+Para garantir que cada ação seja fundamentada, todos os agentes devem incluir um bloco de raciocínio em suas respostas críticas:
 
-## Testes
-- **Comando**: `make test` (roda `pytest -v` dentro do container api)
-- **Fixtures**: `conftest.py` com SQLite in-memory, seed_admin, seed_technician, admin_headers, tech_headers
-- **Módulos**: test_health, test_auth, test_leads, test_products, test_technicians, test_orders, test_users
+```markdown
+### 🧠 Raciocínio (Reasoning Trace)
+- **Problema**: [Breve descrição do desafio]
+- **Fundamento**: Baseado em [[Modelo Mental]]
+- **Justificativa**: [Por que este modelo/abordagem resolve o problema]
+```
 
 ## Estado
 Ver `STATE.md` para detalhes completos.
+
 
 ## This is NOT the Next.js you know
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.

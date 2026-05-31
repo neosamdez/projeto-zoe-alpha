@@ -7,6 +7,7 @@ from app.models import ServiceOrder, Lead, ServiceStatus, OrderEvent, OrderPart,
 from app.schemas import ServiceOrderCreate, OrdersStats, TechnicianProfit
 from app.schemas.order_part import OrderPartCreate
 from app.schemas import OrderNoteCreate, ServiceOrderUpdate
+from app.core.cache import cache_get, cache_set, cache_invalidate
 from decimal import Decimal
 
 class OrderService:
@@ -97,6 +98,8 @@ class OrderService:
 
         self.db.commit()
         self.db.refresh(db_order)
+        cache_invalidate(f"stats:{self.tenant_id}")
+        cache_invalidate(f"analytics:{self.tenant_id}")
         return db_order
 
     def list_orders(
@@ -214,6 +217,8 @@ class OrderService:
 
         self.db.commit()
         self.db.refresh(order)
+        cache_invalidate(f"stats:{self.tenant_id}")
+        cache_invalidate(f"analytics:{self.tenant_id}")
         return order
 
     def get_order_events(self, order_id: uuid.UUID) -> list[OrderEvent]:
@@ -224,10 +229,11 @@ class OrderService:
         ).order_by(OrderEvent.created_at.desc()).all()
 
     def get_analytics(self, days: int = 30) -> dict:
-        """
-        Gera dados de Volume (temporal) e Distribuição (por status).
-        Sprint 20 — O Reator ARC.
-        """
+        cache_key = f"analytics:{self.tenant_id}:{days}"
+        cached = cache_get(cache_key)
+        if cached:
+            return cached
+
         from datetime import timedelta
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -261,32 +267,29 @@ class OrderService:
             .all()
         )
 
-        return {
+        result = {
             "volume": [{"date": str(d), "count": c} for d, c in volume_query],
             "distribution": [{"status": s.value, "count": c} for s, c in distribution_query]
         }
+        cache_set(cache_key, result, ttl=120)
+        return result
 
     def get_stats(self) -> OrdersStats:
-        """
-        [AGGREGATION CORE] Inteligência Financeira e Operacional.
-        Consolida contagens e agregações de receita, custos e ranking de técnicos.
-        """
-        # 0. Blindagem Anti-Null (Early Return)
+        cache_key = f"stats:{self.tenant_id}"
+        cached = cache_get(cache_key)
+        if cached:
+            return OrdersStats(**cached)
+
         total_orders_count = self.db.query(func.count(ServiceOrder.id)).filter(
-            ServiceOrder.tenant_id == self.tenant_id, 
+            ServiceOrder.tenant_id == self.tenant_id,
             ServiceOrder.deleted_at.is_(None)
         ).scalar() or 0
 
         if total_orders_count == 0:
             return OrdersStats(
-                total=0,
-                open=0,
-                repairing=0,
-                completed=0,
-                projected_revenue=0.0,
-                realized_revenue=0.0,
-                total_parts_cost=0.0,
-                realized_net_profit=0.0,
+                total=0, open=0, repairing=0, completed=0,
+                projected_revenue=0.0, realized_revenue=0.0,
+                total_parts_cost=0.0, realized_net_profit=0.0,
                 technician_ranking=[]
             )
 
@@ -333,7 +336,7 @@ class OrderService:
             .all()
         )
 
-        return OrdersStats(
+        result = OrdersStats(
             total=total_orders_count,
             open=int(counts.open or 0) if counts else 0,
             repairing=int(counts.repairing or 0) if counts else 0,
@@ -347,6 +350,8 @@ class OrderService:
                 for r in ranking_query
             ]
         )
+        cache_set(cache_key, result.model_dump(), ttl=120)
+        return result
 
     def assign_technician(self, order_id: uuid.UUID, technician_id: uuid.UUID | None) -> ServiceOrder:
         """Atribui ou remove a responsabilidade técnica de uma Ordem de Serviço."""

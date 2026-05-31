@@ -1,17 +1,28 @@
 import uuid
+import os
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, StaticPool
 from sqlalchemy.orm import sessionmaker
 
+os.environ.setdefault("DB_URL", "sqlite://")
+os.environ.setdefault("X_TENANT_ID", "550e8400-e29b-41d4-a716-446655440000")
+os.environ.setdefault("SECRET_KEY", "test_secret_key_for_pytest_12345")
+os.environ.setdefault("ADMIN_EMAIL", "testadmin@amenti.io")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+
 from app.main import app
-from app.database import get_db, Base
-from app.models import User, UserRole
+from app.database import get_db
+from app.models import Base, User, UserRole
 from app.core.security import get_password_hash, create_access_token
 
-TEST_DB_URL = "sqlite:///./test_asi.db"
+TEST_DB_URL = "sqlite://"
 
-engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    TEST_DB_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 TENANT_ID = uuid.uuid4()

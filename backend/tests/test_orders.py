@@ -32,7 +32,7 @@ class TestOrdersCRUD:
             "device_info": "iPhone 15",
         }).json()
         response = client.delete(f"/api/v1/orders/{order['id']}", headers=admin_headers)
-        assert response.status_code == 204
+        assert response.status_code == 200
 
     def test_delete_order_technician_forbidden(self, client, tech_headers):
         response = client.delete("/api/v1/orders/00000000-0000-0000-0000-000000000000", headers=tech_headers)

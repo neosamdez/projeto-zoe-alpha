@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from app.database import SessionLocal
-from app.models import User, UserRole, Lead, ServiceOrder, ServiceStatus, OrderEvent, OrderPart, Product, Technician
+from app.models import User, UserRole, Lead, ServiceOrder, ServiceStatus, OrderEvent, OrderPart, Product, Technician, DefectCode
 from app.core.security import get_password_hash
 
 TENANT_ID = uuid.UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -195,18 +195,56 @@ def seed():
             product.reserved_stock += qty
             order.parts_cost = (order.parts_cost or Decimal("0.00")) + (product.cost_price * qty)
 
-        # Recalcular total_value para OS com parts
-        orders[3].total_value = Decimal("750.00")
-        orders[4].total_value = Decimal("420.00") + (products[4].selling_price - products[4].cost_price) + ((products[2].selling_price - products[2].cost_price) * 2)
+    # Recalcular total_value para OS com parts
+    orders[3].total_value = Decimal("750.00")
+    orders[4].total_value = Decimal("420.00") + (products[4].selling_price - products[4].cost_price) + ((products[2].selling_price - products[2].cost_price) * 2)
 
-        db.commit()
-        print("[SEED] ✅ Cidadela populada com sucesso!")
-        print(f"  - 1 Admin (admin@amenti.io / amenti2026)")
-        print(f"  - {len(technicians)} Técnicos")
-        print(f"  - {len(leads)} Leads")
-        print(f"  - {len(products)} Produtos")
-        print(f"  - {len(orders)} Ordens de Serviço")
-        print(f"  - Events + Parts vinculados")
+    # ── 8. DEFECT CODES (Sprint 28 — Catálogo Samsung SR01-SR22) ─────────
+    defect_data = [
+        ("SR01", "Oxidação / Corrosão", "COMUM", "Comum"),
+        ("SR02", "Não Liga", "COMUM", "Comum"),
+        ("SR03", "Inutilizado (Reason 807)", "COMUM", None),
+        ("SR04", "Ruído / Interferência imagem/som", "COMUM", "Comum"),
+        ("SR05", "Sem Áudio / Volume baixo", "COMUM", "Comum"),
+        ("SR06", "Desliga Sozinho / Liga e Desliga", "COMUM", "Comum"),
+        ("SR07", "Fuga de Corrente", "HA_AC", "HA/AC"),
+        ("SR08", "Defeitos na Imagem / Mancha na Tela / Linhas", "PAINEL", "Painel/OCTA"),
+        ("SR09", "Sem Imagem / Luz de fundo apagada", "PAINEL", "Painel/OCTA"),
+        ("SR10", "Touch não Funciona / Botões / Teclas", "PAINEL", "Painel/OCTA/PBA"),
+        ("SR11", "Não Escreve IMEI / Não atualiza SW", "PBA", "PBA"),
+        ("SR12", "Travando / Lento / Não Sintoniza", "COMUM", "Comum"),
+        ("SR13", "Não Carrega", "BATERIA", "Bateria"),
+        ("SR14", "Não Segura Carga", "BATERIA", "Bateria"),
+        ("SR15", "Bateria Estufada", "BATERIA", "Bateria"),
+        ("SR16", "Baixa Compressão", "HA_AC", "HA/AC"),
+        ("SR17", "Erros de IPM / DC link", "HA_AC", "HA/AC"),
+        ("SR18", "Não Reconhece SIM Card", "HHP", "HHP"),
+        ("SR19", "Não faz Chamada", "HHP", "HHP"),
+        ("SR20", "Wi-Fi / BT / GPS", "HHP", "HHP"),
+        ("SR21", "Câmera com Problema", "HHP", "HHP/NPC"),
+        ("SR22", "Outros / Não reconhece HDMI", "COMUM", "Comum/PBA"),
+    ]
+    for code, desc, cat, part in defect_data:
+        dc = DefectCode(
+            id=uuid.uuid4(),
+            tenant_id=TENANT_ID,
+            code=code,
+            description=desc,
+            category=cat,
+            most_used_part=part,
+            is_active=True,
+        )
+        db.add(dc)
+
+    db.commit()
+    print("[SEED] ✅ Cidadela populada com sucesso!")
+    print(f" - 1 Admin (admin@amenti.io / amenti2026)")
+    print(f" - {len(technicians)} Técnicos")
+    print(f" - {len(leads)} Leads")
+    print(f" - {len(products)} Produtos")
+    print(f" - {len(orders)} Ordens de Serviço")
+    print(f" - Events + Parts vinculados")
+    print(f" - {len(defect_data)} Códigos de Defeito (SR01-SR22)")
 
     except Exception as e:
         db.rollback()
